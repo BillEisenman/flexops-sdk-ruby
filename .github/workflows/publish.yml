@@ -1,8 +1,19 @@
 name: Publish to RubyGems
 
-# Publish flexops gem to rubygems.org when a vX.Y.Z tag is pushed.
-# Secret required:
-#   RUBYGEMS_API_KEY — a RubyGems API key with push scope for the flexops gem
+# Publishes flexops to rubygems.org via RubyGems trusted publishing (OIDC) —
+# no stored token, no MFA prompt. Triggered on vX.Y.Z tag push or manual
+# workflow_dispatch.
+#
+# One-time setup on rubygems.org (required before the first run):
+#   1. Log in to rubygems.org → gem "flexops" → Trusted Publishers →
+#      Create new trusted publisher
+#   2. Fill in:
+#        Publisher:   GitHub Actions
+#        Repository:  BillEisenman/flexops-sdk-ruby
+#        Workflow:    publish.yml
+#        Environment: (leave blank)
+#
+# Docs: https://guides.rubygems.org/trusted-publishing/
 
 on:
   push:
@@ -12,6 +23,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write   # required to mint the OIDC token GitHub → RubyGems exchanges
 
 jobs:
   publish:
@@ -27,7 +39,10 @@ jobs:
       - name: Build gem
         run: gem build flexops.gemspec
 
-      - name: Publish
+      - name: Configure RubyGems OIDC credentials
+        uses: rubygems/configure-rubygems-credentials@main
+        # Sets up ~/.gem/credentials with a short-lived token minted from
+        # the GitHub OIDC claim. No GEM_HOST_API_KEY needed.
+
+      - name: Publish (OIDC trusted publisher)
         run: gem push flexops-*.gem
-        env:
-          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
