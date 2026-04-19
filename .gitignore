@@ -1,0 +1,11 @@
+*.gem
+pkg/
+.bundle/
+vendor/bundle/
+vendor/cache/
+Gemfile.lock
+coverage/
+.rspec_status
+.DS_Store
+.vscode/
+.idea/
