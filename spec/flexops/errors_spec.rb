@@ -12,12 +12,12 @@ RSpec.describe "Error handling" do
 
   describe "401 Unauthorized" do
     it "raises FlexOps::AuthError" do
-      stub_request(:post, "#{ws_path}/shipping/rates")
+      stub_request(:post, "#{BASE_URL}/api/shipping/rates")
         .to_return(status: 401, body: { message: "Invalid token" }.to_json,
                    headers: { "Content-Type" => "application/json" })
 
       expect {
-        client.shipping.get_rates({ from_zip: "10001", to_zip: "90210" })
+        client.shipping.get_rates(rate_request)
       }.to raise_error(FlexOps::AuthError) { |e|
         expect(e.status).to eq(401)
         expect(e.code).to eq("UNAUTHORIZED")
@@ -29,12 +29,12 @@ RSpec.describe "Error handling" do
     it "raises FlexOps::Error with validation details" do
       error_body = { message: "Validation failed", errors: ["weight is required"] }
 
-      stub_request(:post, "#{ws_path}/shipping/rates")
+      stub_request(:post, "#{BASE_URL}/api/shipping/rates")
         .to_return(status: 400, body: error_body.to_json,
                    headers: { "Content-Type" => "application/json" })
 
       expect {
-        client.shipping.get_rates({ from_zip: "", to_zip: "" })
+        client.shipping.get_rates(rate_request)
       }.to raise_error(FlexOps::Error) { |e|
         expect(e.status).to eq(400)
         expect(e.message).to eq("Validation failed")
@@ -45,12 +45,12 @@ RSpec.describe "Error handling" do
 
   describe "403 Forbidden" do
     it "raises FlexOps::Error with access denied message" do
-      stub_request(:post, "#{ws_path}/shipping/rates")
+      stub_request(:post, "#{BASE_URL}/api/shipping/rates")
         .to_return(status: 403, body: "".to_json,
                    headers: { "Content-Type" => "application/json" })
 
       expect {
-        client.shipping.get_rates({ from_zip: "10001", to_zip: "90210" })
+        client.shipping.get_rates(rate_request)
       }.to raise_error(FlexOps::Error) { |e|
         expect(e.status).to eq(403)
         expect(e.code).to eq("FORBIDDEN")
@@ -61,7 +61,7 @@ RSpec.describe "Error handling" do
   describe "429 Rate Limited" do
     it "retries and eventually raises FlexOps::RateLimitError when all retries exhausted" do
       # Return 429 for all attempts (initial + 3 retries = 4 total)
-      stub_request(:post, "#{ws_path}/shipping/rates")
+      stub_request(:post, "#{BASE_URL}/api/shipping/rates")
         .to_return(
           status: 429,
           body: { message: "Rate limited" }.to_json,
@@ -72,7 +72,7 @@ RSpec.describe "Error handling" do
       allow_any_instance_of(FlexOps::HttpClient).to receive(:sleep)
 
       expect {
-        client.shipping.get_rates({ from_zip: "10001", to_zip: "90210" })
+        client.shipping.get_rates(rate_request)
       }.to raise_error(FlexOps::RateLimitError) { |e|
         expect(e.status).to eq(429)
         expect(e.code).to eq("RATE_LIMITED")
@@ -83,7 +83,7 @@ RSpec.describe "Error handling" do
   describe "retry on 5xx" do
     it "retries on 500 and succeeds on the second attempt" do
       # First call returns 500, second succeeds
-      stub_request(:post, "#{ws_path}/shipping/rates")
+      stub_request(:post, "#{BASE_URL}/api/shipping/rates")
         .to_return(
           { status: 500, body: { message: "Internal error" }.to_json,
             headers: { "Content-Type" => "application/json" } },
@@ -93,14 +93,14 @@ RSpec.describe "Error handling" do
 
       allow_any_instance_of(FlexOps::HttpClient).to receive(:sleep)
 
-      result = client.shipping.get_rates({ from_zip: "10001", to_zip: "90210" })
+      result = client.shipping.get_rates(rate_request)
 
       expect(result["success"]).to be true
       expect(result["data"].length).to eq(1)
     end
 
     it "retries on 429 and succeeds on the third attempt" do
-      stub_request(:post, "#{ws_path}/shipping/rates")
+      stub_request(:post, "#{BASE_URL}/api/shipping/rates")
         .to_return(
           { status: 429, body: { message: "Rate limited" }.to_json,
             headers: { "Content-Type" => "application/json", "Retry-After" => "0" } },
@@ -112,7 +112,7 @@ RSpec.describe "Error handling" do
 
       allow_any_instance_of(FlexOps::HttpClient).to receive(:sleep)
 
-      result = client.shipping.get_rates({ from_zip: "10001", to_zip: "90210" })
+      result = client.shipping.get_rates(rate_request)
 
       expect(result["success"]).to be true
     end
