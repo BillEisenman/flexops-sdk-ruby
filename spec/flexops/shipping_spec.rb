@@ -17,16 +17,21 @@ RSpec.describe FlexOps::Resources::Shipping do
         { carrier: "UPS", service: "Ground", rate: 12.30, estimatedDays: 5 }
       ]
 
-      stub_request(:post, "#{ws_path}/shipping/rates")
-        .to_return(status: 200, body: json_body(rates), headers: { "Content-Type" => "application/json" })
+      request = {
+        origin: { addressLine1: "123 Main St", city: "New York", stateProvince: "NY", postalCode: "10001" },
+        destination: { addressLine1: "456 Oak Ave", city: "Los Angeles", stateProvince: "CA", postalCode: "90210" },
+        package: { weight: 16, weightUnit: "oz" }
+      }
+      stub_request(:post, "#{BASE_URL}/api/shipping/rates")
+        .with(body: request.to_json)
+        .to_return(status: 200, body: { currency: "USD", rates: rates }.to_json, headers: { "Content-Type" => "application/json" })
 
-      result = client.shipping.get_rates({ from_zip: "10001", to_zip: "90210", weight: 16 })
+      result = client.shipping.get_rates(request)
 
-      expect(result["success"]).to be true
-      expect(result["data"]).to be_an(Array)
-      expect(result["data"].length).to eq(2)
-      expect(result["data"][0]["carrier"]).to eq("USPS")
-      expect(result["data"][1]["rate"]).to eq(12.30)
+      expect(result["rates"]).to be_an(Array)
+      expect(result["rates"].length).to eq(2)
+      expect(result["rates"][0]["carrier"]).to eq("USPS")
+      expect(result["rates"][1]["rate"]).to eq(12.30)
     end
   end
 

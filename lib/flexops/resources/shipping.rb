@@ -15,15 +15,15 @@ module FlexOps
       end
 
       def get_rates(request)
-        @http.post("#{ws_path}/shipping/rates", body: request)
+        @http.post("/api/shipping/rates", body: request)
       end
 
       def get_cheapest_rate(request)
-        @http.post("#{ws_path}/shipping/rates/cheapest", body: request)
+        @http.post("/api/shipping/rates/cheapest", body: request)
       end
 
       def get_fastest_rate(request)
-        @http.post("#{ws_path}/shipping/rates/fastest", body: request)
+        @http.post("/api/shipping/rates/fastest", body: request)
       end
 
       def create_label(request)

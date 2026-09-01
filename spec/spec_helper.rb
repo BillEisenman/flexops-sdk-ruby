@@ -39,6 +39,14 @@ def create_client(api_key: "sk_test_key", access_token: nil, workspace_id: "ws-t
   )
 end
 
+def rate_request
+  {
+    origin: { addressLine1: "123 Main St", city: "New York", stateProvince: "NY", postalCode: "10001" },
+    destination: { addressLine1: "456 Oak Ave", city: "Los Angeles", stateProvince: "CA", postalCode: "90210" },
+    package: { weight: 16, weightUnit: "oz" }
+  }
+end
+
 # Helper to build a JSON response body
 def json_body(data, success: true)
   { success: success, data: data }.to_json
