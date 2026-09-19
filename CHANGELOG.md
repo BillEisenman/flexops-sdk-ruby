@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bounded label purchase support
+
+- Single-label requests support maximumPostageAmount and confirmationToken.
+- CreateLabel/create_label accepts a per-purchase idempotency key and preserves it on retries.
+- Preview and purchase responses are raw objects, not success/data envelopes.
+- Gateway errorCode is preserved on SDK errors.
+- No package has been published by this change. Read the README approval flow before migrating.
+
 ### Added
 - Initial README with installation, quick start, authentication (API key and email/password), sandbox guidance, direct carrier operations, webhook verification, and a curl quickstart section.
 
