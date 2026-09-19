@@ -62,11 +62,10 @@ end
 info = client.shipping.track("9400111899223456789012")
 ```
 
-### Live label approval (unreleased SDK changes)
+### Live label approval (1.1.0+)
 
-The example below requires this source revision; the published 1.0.2 packages do
-not include the new per-call idempotency argument. Release these SDK changes before
-using that argument from a package registry.
+The example below requires SDK 1.1.0 or later. Version 1.0.2 does not
+include the per-call idempotency argument.
 
 For live domestic single-label requests, `maximumPostageAmount` is required: positive
 USD, at most two decimal places, up to 1,000,000. Missing or invalid values return
