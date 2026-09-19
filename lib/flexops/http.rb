@@ -38,8 +38,8 @@ module FlexOps
       request(:get, path, query: query)
     end
 
-    def post(path, body: nil, query: nil)
-      request(:post, path, body: body, query: query)
+    def post(path, body: nil, query: nil, headers: {})
+      request(:post, path, body: body, query: query, headers: headers)
     end
 
     def put(path, body: nil)
@@ -56,7 +56,7 @@ module FlexOps
 
     private
 
-    def request(method, path, body: nil, query: nil)
+    def request(method, path, body: nil, query: nil, headers: {})
       uri = build_uri(path, query)
       last_error = nil
 
@@ -66,6 +66,7 @@ module FlexOps
         end
 
         req = build_request(method, uri, body)
+        headers.each { |name, value| req[name] = value }
         begin
           response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https",
                                      open_timeout: @timeout, read_timeout: @timeout) do |http|
@@ -97,6 +98,7 @@ module FlexOps
           error = Error.new(
             error_body["message"] || "HTTP #{status}: #{response.message}",
             status: status,
+            code: error_body["errorCode"] || error_body["code"],
             errors: error_body["errors"]
           )
 

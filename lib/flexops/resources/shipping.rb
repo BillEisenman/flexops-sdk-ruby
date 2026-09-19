@@ -26,8 +26,11 @@ module FlexOps
         @http.post("/api/shipping/rates/fastest", body: request)
       end
 
-      def create_label(request)
-        @http.post("#{ws_path}/shipping/labels", body: request)
+      # Returns a raw preview or label; confirmation always belongs to the caller.
+      def create_label(request = {}, idempotency_key: nil, **fields)
+        request = request.merge(fields)
+        @http.post("#{ws_path}/shipping/labels", body: request,
+                   headers: idempotency_key.nil? ? {} : { "Idempotency-Key" => idempotency_key })
       end
 
       def cancel_label(label_id)
