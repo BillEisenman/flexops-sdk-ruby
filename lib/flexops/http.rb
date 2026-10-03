@@ -83,9 +83,6 @@ module FlexOps
             raise AuthError
           end
 
-          if status == 403
-            raise Error.new("Access denied. Check your plan tier and feature entitlements.", status: 403, code: "FORBIDDEN")
-          end
 
           if status == 429
             retry_after = (response["retry-after"] || "0").to_i
@@ -98,7 +95,7 @@ module FlexOps
           error = Error.new(
             error_body["message"] || "HTTP #{status}: #{response.message}",
             status: status,
-            code: error_body["errorCode"] || error_body["code"],
+            code: error_body["errorCode"] || error_body["code"] || (status == 403 ? "FORBIDDEN" : nil),
             errors: error_body["errors"]
           )
 

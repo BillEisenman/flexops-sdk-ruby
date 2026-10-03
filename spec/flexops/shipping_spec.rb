@@ -59,7 +59,7 @@ RSpec.describe FlexOps::Resources::Shipping do
       expect(client.shipping.create_label(**preview_request)["status"]).to eq("Preview")
     end
 
-    [[400, "ApprovalRequired"], [409, "ApprovalExpired"]].each do |status, code|
+    [[400, "ApprovalRequired"], [409, "ApprovalExpired"], [403, "FeatureDisabled"], [409, "OutcomeUnknown"]].each do |status, code|
       it "preserves #{code} without retrying" do
         stub = stub_request(:post, "#{ws_path}/shipping/labels")
           .to_return(status: status, body: {errorCode: code, message: code}.to_json, headers: {"Content-Type" => "application/json"})
@@ -116,6 +116,23 @@ RSpec.describe FlexOps::Resources::Shipping do
       expect(result["success"]).to be true
       expect(result["data"]["lane"]).to eq("80202-10001")
       expect(result["data"]["recommendations"].length).to eq(1)
+    end
+  end
+
+  describe "international customs contract" do
+    it "preserves the declaration through explicit preview and purchase" do
+      request = JSON.parse(File.read(File.expand_path("../../examples/international-label.json", __dir__)))
+      url = "#{ws_path}/shipping/labels"
+      preview_stub = stub_request(:post, url).with(body: request.to_json)
+        .to_return(status: 200, body: {status: "Preview", confirmationToken: "approved"}.to_json, headers: {"Content-Type" => "application/json"})
+      preview = client.shipping.create_label(request)
+      expect(preview["status"]).to eq("Preview")
+      expect(preview_stub).to have_been_requested.once
+      request["confirmationToken"] = preview["confirmationToken"]
+      purchase_stub = stub_request(:post, url).with(body: request.to_json, headers: {"Idempotency-Key" => "international-1"})
+        .to_return(status: 201, body: {labelId: "intl-1", currency: "USD"}.to_json, headers: {"Content-Type" => "application/json"})
+      expect(client.shipping.create_label(request, idempotency_key: "international-1")["labelId"]).to eq("intl-1")
+      expect(purchase_stub).to have_been_requested.once
     end
   end
 end
