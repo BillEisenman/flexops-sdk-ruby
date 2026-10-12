@@ -65,6 +65,18 @@ RSpec.describe "HAZMAT declaration" do
     expect(JSON.parse(bodies[1])).to eq("hazmatClassification" => 0)
   end
 
+  # FlexOpsGateway#672: without a default shipping preset the Gateway needs the package on the request.
+  it "sends a return label's package weight and size" do
+    url = "#{BASE_URL}/api/workspaces/ws-test-123/returns/RMA-1/label"
+    bodies = []
+    stub_request(:post, url).with { |req| bodies << JSON.parse(req.body) }
+      .to_return(status: 200, body: '{"success":true}', headers: json_headers)
+
+    client.returns.generate_label("RMA-1", weight_oz: 16, length_in: 10, width_in: 8, height_in: 4)
+
+    expect(bodies).to eq([{ "weightOz" => 16, "lengthIn" => 10, "widthIn" => 8, "heightIn" => 4 }])
+  end
+
   it "sends address validation as the Gateway AddressValidationRequest" do
     canonical = { "addressLine1" => "123 Main St", "city" => "New York", "stateProvince" => "NY",
                   "postalCode" => "10001", "countryCode" => "US" }

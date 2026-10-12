@@ -39,10 +39,23 @@ module FlexOps
         @http.post("#{ws_path}/returns/#{return_id}/cancel")
       end
 
-      # hazmat_classification (a HazmatClassification) declares what the return holds; sent only when set.
-      def generate_label(return_id, hazmat_classification: nil)
+      # Generates a return label for an approved RMA.
+      #
+      # The carrier needs the package weight and all three dimensions: pass weight_oz, length_in,
+      # width_in and height_in. Anything left out comes from the workspace's default shipping
+      # preset; with no preset the Gateway answers 400 PackageMeasurementsRequired naming the
+      # missing fields.
+      #
+      # Only what you set is sent. hazmat_classification (a HazmatClassification) declares what
+      # the return holds.
+      def generate_label(return_id, weight_oz: nil, length_in: nil, width_in: nil, height_in: nil,
+                         carrier_code: nil, service_type: nil, payment_confirmed: nil, hazmat_classification: nil)
         # Always a JSON object: the Gateway binds a required GenerateReturnLabelRequest body and refuses an empty one with 400.
-        body = hazmat_classification.nil? ? {} : { hazmatClassification: hazmat_classification }
+        body = {
+          carrierCode: carrier_code, serviceType: service_type, weightOz: weight_oz, lengthIn: length_in,
+          widthIn: width_in, heightIn: height_in, paymentConfirmed: payment_confirmed,
+          hazmatClassification: hazmat_classification
+        }.compact
         @http.post("#{ws_path}/returns/#{return_id}/label", body: body)
       end
 
