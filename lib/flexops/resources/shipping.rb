@@ -6,6 +6,8 @@
 # Copyright (c) 2021-2026 by FlexOps, LLC. All rights reserved.
 # ***********************************************************************
 
+require "erb"
+
 module FlexOps
   module Resources
     class Shipping
@@ -35,12 +37,16 @@ module FlexOps
                    headers: idempotency_key.nil? ? {} : { "Idempotency-Key" => idempotency_key })
       end
 
-      def cancel_label(label_id)
-        @http.delete("#{ws_path}/shipping/labels/#{label_id}")
+      # The Gateway requires the carrier code (for example "USPS"). It is a keyword with no
+      # default value so older call sites fail with a clear ArgumentError before any request.
+      def cancel_label(label_id, carrier_code: nil)
+        raise ArgumentError, "carrier_code is required to cancel a label (for example \"USPS\")" if carrier_code.to_s.empty?
+
+        @http.delete("/api/shipping/labels/#{escape(label_id)}?carrierCode=#{escape(carrier_code)}")
       end
 
       def track(tracking_number)
-        @http.get("#{ws_path}/shipping/track/#{tracking_number}")
+        @http.get("/api/shipping/track/#{escape(tracking_number)}")
       end
 
       # Sends the Gateway AddressValidationRequest ({ address: {...} }). A legacy
@@ -67,25 +73,29 @@ module FlexOps
       end
 
       def get_carriers
-        @http.get("#{ws_path}/shipping/carriers")
+        @http.get("/api/shipping/carriers")
       end
 
       def get_recommendations(request)
-        @http.post("#{ws_path}/shipping/recommendations", body: request)
+        @http.post("/api/shipping/recommendations", body: request)
       end
 
       def predict_delivery(request)
-        @http.post("#{ws_path}/shipping/predictions/delivery", body: request)
+        @http.post("/api/shipping/predictions/delivery", body: request)
       end
 
       def get_savings
-        @http.get("#{ws_path}/shipping/savings")
+        @http.get("/api/shipping/savings")
       end
 
       private
 
       def ws_path
         "/api/workspaces/#{@ws_id.call}"
+      end
+
+      def escape(segment)
+        ERB::Util.url_encode(segment.to_s)
       end
 
       LEGACY_ADDRESS_FIELDS = {
