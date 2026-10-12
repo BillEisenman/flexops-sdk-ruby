@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `FlexOps::HazmatClassification` constants (`NONE` = 0 ... `LITHIUM_BATTERY_USED_DEVICE` = 6, the Gateway numbers). Put `hazmatClassification:` in a label or rate request; it is sent only when you set it, and the SDK never defaults it. Labels without an `orderId` must declare it (`HazmatClassification::NONE` for an ordinary parcel).
 - `returns.generate_label(return_id, hazmat_classification:)` sends a declared HAZMAT class with a return label.
+- `returns.generate_label` also takes `weight_oz:`, `length_in:`, `width_in:`, `height_in:`, `carrier_code:`, `service_type:` and `payment_confirmed:`. The Gateway needs the package: a workspace with no default shipping preset gets a 400 (`PackageMeasurementsRequired`) naming the missing fields when it is left out (Gateway #672).
 
 ### Fixed
 - `returns.generate_label(return_id)` sends `{}`; it sent no body, which the Gateway return-label route refuses with 400.
