@@ -38,7 +38,7 @@ RSpec.describe FlexOps::Resources::Shipping do
   describe "#create_label" do
     it "previews without purchasing and preserves approval and key across retries" do
       request = rate_request.merge(carrierCode: "USPS", serviceCode: "GROUND_ADVANTAGE", maximumPostageAmount: 10.25)
-      url = "#{ws_path}/shipping/labels"
+      url = "#{BASE_URL}/api/shipping/labels"
       preview_stub = stub_request(:post, url).with(body: request.to_json)
         .to_return(status: 200, body: {status: "Preview", confirmationToken: "approval",
           quotedPostageAmount: 8.5, maximumPostageAmount: 10.25, currency: "USD",
@@ -61,7 +61,7 @@ RSpec.describe FlexOps::Resources::Shipping do
 
     [[400, "ApprovalRequired"], [409, "ApprovalExpired"], [403, "FeatureDisabled"], [409, "OutcomeUnknown"]].each do |status, code|
       it "preserves #{code} without retrying" do
-        stub = stub_request(:post, "#{ws_path}/shipping/labels")
+        stub = stub_request(:post, "#{BASE_URL}/api/shipping/labels")
           .to_return(status: status, body: {errorCode: code, message: code}.to_json, headers: {"Content-Type" => "application/json"})
         expect { client.shipping.create_label({}) }.to raise_error(FlexOps::Error) { |e|
           expect(e.status).to eq(status)
@@ -83,15 +83,14 @@ RSpec.describe FlexOps::Resources::Shipping do
         ]
       }
 
-      stub_request(:get, "#{ws_path}/shipping/track/9400111899223456789012")
-        .to_return(status: 200, body: json_body(tracking), headers: { "Content-Type" => "application/json" })
+      stub_request(:get, "#{BASE_URL}/api/shipping/track/9400111899223456789012")
+        .to_return(status: 200, body: tracking.to_json, headers: { "Content-Type" => "application/json" })
 
       result = client.shipping.track("9400111899223456789012")
 
-      expect(result["success"]).to be true
-      expect(result["data"]["status"]).to eq("In Transit")
-      expect(result["data"]["events"].length).to eq(1)
-      expect(result["data"]["events"][0]["description"]).to eq("Left facility")
+      expect(result["status"]).to eq("In Transit")
+      expect(result["events"].length).to eq(1)
+      expect(result["events"][0]["description"]).to eq("Left facility")
     end
   end
 
@@ -105,24 +104,48 @@ RSpec.describe FlexOps::Resources::Shipping do
         ]
       }
 
-      stub_request(:post, "#{ws_path}/shipping/recommendations")
-        .to_return(status: 200, body: json_body(recommendations), headers: { "Content-Type" => "application/json" })
+      stub_request(:post, "#{BASE_URL}/api/shipping/recommendations")
+        .to_return(status: 200, body: recommendations.to_json, headers: { "Content-Type" => "application/json" })
 
       result = client.shipping.get_recommendations({
         origin_postal_code: "80202",
         destination_postal_code: "10001"
       })
 
-      expect(result["success"]).to be true
-      expect(result["data"]["lane"]).to eq("80202-10001")
-      expect(result["data"]["recommendations"].length).to eq(1)
+      expect(result["lane"]).to eq("80202-10001")
+      expect(result["recommendations"].length).to eq(1)
+    end
+  end
+
+  describe "Gateway api/shipping routes" do
+    let(:json_headers) { { "Content-Type" => "application/json" } }
+
+    it "cancels a label with the carrier code the Gateway requires" do
+      stub = stub_request(:delete, "#{BASE_URL}/api/shipping/labels/lbl-1?carrierCode=USPS")
+        .to_return(status: 200, body: '{"success":true}', headers: json_headers)
+
+      expect(client.shipping.cancel_label("lbl-1", carrier_code: "USPS")["success"]).to be true
+      expect(stub).to have_been_requested.once
+      expect { client.shipping.cancel_label("lbl-1") }.to raise_error(ArgumentError, /carrier_code/)
+      expect(stub).to have_been_requested.once
+    end
+
+    it "reads carriers, predictions and savings without a workspace path" do
+      stub_request(:get, "#{BASE_URL}/api/shipping/carriers").to_return(status: 200, body: '[{"carrierCode":"USPS"}]', headers: json_headers)
+      stub_request(:post, "#{BASE_URL}/api/shipping/predictions/delivery").with(body: { carrierCode: "USPS" }.to_json)
+        .to_return(status: 200, body: '{"carrierCode":"USPS"}', headers: json_headers)
+      stub_request(:get, "#{BASE_URL}/api/shipping/savings").to_return(status: 200, body: '{"lanesAnalyzed":3}', headers: json_headers)
+
+      expect(client.shipping.get_carriers[0]["carrierCode"]).to eq("USPS")
+      expect(client.shipping.predict_delivery(carrierCode: "USPS")["carrierCode"]).to eq("USPS")
+      expect(client.shipping.get_savings["lanesAnalyzed"]).to eq(3)
     end
   end
 
   describe "international customs contract" do
     it "preserves the declaration through explicit preview and purchase" do
       request = JSON.parse(File.read(File.expand_path("../../examples/international-label.json", __dir__)))
-      url = "#{ws_path}/shipping/labels"
+      url = "#{BASE_URL}/api/shipping/labels"
       preview_stub = stub_request(:post, url).with(body: request.to_json)
         .to_return(status: 200, body: {status: "Preview", confirmationToken: "approved"}.to_json, headers: {"Content-Type" => "application/json"})
       preview = client.shipping.create_label(request)

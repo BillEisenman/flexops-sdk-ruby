@@ -6,6 +6,8 @@
 # Copyright (c) 2021-2026 by FlexOps, LLC. All rights reserved.
 # ***********************************************************************
 
+require "erb"
+
 module FlexOps
   module Resources
     class Shipping
@@ -27,24 +29,33 @@ module FlexOps
       end
 
       # Returns a raw preview or label; confirmation always belongs to the caller.
+      # A label without an orderId must declare hazmatClassification (a HazmatClassification;
+      # HazmatClassification::NONE for an ordinary parcel). The SDK never fills it in.
       def create_label(request = {}, idempotency_key: nil, **fields)
         request = request.merge(fields)
-        @http.post("#{ws_path}/shipping/labels", body: request,
+        @http.post("/api/shipping/labels", body: request,
                    headers: idempotency_key.nil? ? {} : { "Idempotency-Key" => idempotency_key })
       end
 
-      def cancel_label(label_id)
-        @http.delete("#{ws_path}/shipping/labels/#{label_id}")
+      # The Gateway requires the carrier code (for example "USPS"). It is a keyword with no
+      # default value so older call sites fail with a clear ArgumentError before any request.
+      def cancel_label(label_id, carrier_code: nil)
+        raise ArgumentError, "carrier_code is required to cancel a label (for example \"USPS\")" if carrier_code.to_s.empty?
+
+        @http.delete("/api/shipping/labels/#{escape(label_id)}?carrierCode=#{escape(carrier_code)}")
       end
 
       def track(tracking_number)
-        @http.get("#{ws_path}/shipping/track/#{tracking_number}")
+        @http.get("/api/shipping/track/#{escape(tracking_number)}")
       end
 
+      # Sends the Gateway AddressValidationRequest ({ address: {...} }). A legacy
+      # street1/state/zip address is mapped to the Gateway field names.
       def validate_address(address)
-        @http.post("#{ws_path}/shipping/addresses/validate", body: address)
+        @http.post("/api/shipping/addresses/validate", body: { address: to_shipping_address(address) })
       end
 
+      # The payload is sent as given. Set hazmatClassification on an item only when you have a declaration.
       def create_batch(request)
         @http.post("#{ws_path}/labels/batch", body: request)
       end
@@ -62,25 +73,46 @@ module FlexOps
       end
 
       def get_carriers
-        @http.get("#{ws_path}/shipping/carriers")
+        @http.get("/api/shipping/carriers")
       end
 
       def get_recommendations(request)
-        @http.post("#{ws_path}/shipping/recommendations", body: request)
+        @http.post("/api/shipping/recommendations", body: request)
       end
 
       def predict_delivery(request)
-        @http.post("#{ws_path}/shipping/predictions/delivery", body: request)
+        @http.post("/api/shipping/predictions/delivery", body: request)
       end
 
       def get_savings
-        @http.get("#{ws_path}/shipping/savings")
+        @http.get("/api/shipping/savings")
       end
 
       private
 
       def ws_path
         "/api/workspaces/#{@ws_id.call}"
+      end
+
+      def escape(segment)
+        ERB::Util.url_encode(segment.to_s)
+      end
+
+      LEGACY_ADDRESS_FIELDS = {
+        "street1" => "addressLine1",
+        "street2" => "addressLine2",
+        "state" => "stateProvince",
+        "zip" => "postalCode",
+        "country" => "countryCode"
+      }.freeze
+
+      # Maps an address to the Gateway ShippingAddress; canonical input passes through.
+      def to_shipping_address(address)
+        return address unless address.key?(:street1) || address.key?("street1")
+
+        address.each_with_object({}) do |(key, value), mapped|
+          mapped[LEGACY_ADDRESS_FIELDS.fetch(key.to_s, key.to_s)] = value unless value.nil?
+        end
       end
     end
   end

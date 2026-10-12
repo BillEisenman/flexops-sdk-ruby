@@ -45,7 +45,9 @@ request = {
   origin: {name: "Warehouse", addressLine1: "123 Main St", city: "New York", stateProvince: "NY", postalCode: "10001", countryCode: "US"},
   destination: {name: "Customer", addressLine1: "456 Oak Ave", city: "Los Angeles", stateProvince: "CA", postalCode: "90210", countryCode: "US"},
   package: {weight: 16, weightUnit: "oz"},
-  maximumPostageAmount: 10.25 # Caller-approved ceiling in USD.
+  maximumPostageAmount: 10.25, # Caller-approved ceiling in USD.
+  # Required without an orderId. The SDK never fills it in; NONE (0) = not hazardous.
+  hazmatClassification: FlexOps::HazmatClassification::NONE
 }
 preview = client.shipping.create_label(request)
 puts preview["quotedPostageAmount"]
@@ -155,7 +157,8 @@ curl -X POST https://gateway.flexops.io/api/shipping/rates \
   }'
 
 # Preview a live label; this does not purchase it.
-curl -X POST https://gateway.flexops.io/api/workspaces/ws_abc123/shipping/labels \
+# hazmatClassification 0 = not hazardous; required when there is no orderId.
+curl -X POST https://gateway.flexops.io/api/shipping/labels \
   -H "X-API-Key: fxk_live_..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -163,7 +166,8 @@ curl -X POST https://gateway.flexops.io/api/workspaces/ws_abc123/shipping/labels
     "origin": {"name": "Warehouse", "addressLine1": "123 Main St", "city": "New York", "stateProvince": "NY", "postalCode": "10001", "countryCode": "US"},
     "destination": {"name": "Customer", "addressLine1": "456 Oak Ave", "city": "Los Angeles", "stateProvince": "CA", "postalCode": "90210", "countryCode": "US"},
     "package": {"weight": 16, "weightUnit": "oz"},
-    "maximumPostageAmount": 10.25
+    "maximumPostageAmount": 10.25,
+    "hazmatClassification": 0
   }'
 
 # After explicit approval, resend the same body with confirmationToken from
@@ -171,7 +175,7 @@ curl -X POST https://gateway.flexops.io/api/workspaces/ws_abc123/shipping/labels
 # See the SDK example above; retain that key for retries.
 
 # Track a shipment
-curl https://gateway.flexops.io/api/workspaces/ws_abc123/shipping/track/9400111899223456789012 \
+curl https://gateway.flexops.io/api/shipping/track/9400111899223456789012 \
   -H "X-API-Key: fxk_live_..."
 
 # Cancel a label (via the unified carrier-agnostic endpoint)
