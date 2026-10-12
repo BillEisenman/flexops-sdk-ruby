@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `returns.generate_label(return_id, hazmat_classification:)` sends a declared HAZMAT class with a return label.
 
 ### Fixed
+- `returns.generate_label(return_id)` sends `{}`; it sent no body, which the Gateway return-label route refuses with 400.
 - `shipping.create_label` posts to the Gateway route `/api/shipping/labels`; it used a workspace-scoped path the Gateway does not serve.
 - `shipping.track`, `cancel_label`, `get_carriers`, `get_recommendations`, `predict_delivery` and `get_savings` use the Gateway `/api/shipping/...` routes instead of workspace-scoped paths the Gateway does not serve. `cancel_label(label_id, carrier_code:)` now needs the carrier code the Gateway requires; without it the SDK raises `ArgumentError` before any request.
 - `shipping.validate_address` posts the Gateway `{ address: {...} }` request to `/api/shipping/addresses/validate`, and maps a legacy `street1`/`state`/`zip` address to the Gateway field names.

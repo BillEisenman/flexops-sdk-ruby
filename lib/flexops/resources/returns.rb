@@ -41,7 +41,8 @@ module FlexOps
 
       # hazmat_classification (a HazmatClassification) declares what the return holds; sent only when set.
       def generate_label(return_id, hazmat_classification: nil)
-        body = hazmat_classification.nil? ? nil : { hazmatClassification: hazmat_classification }
+        # Always a JSON object: the Gateway binds a required GenerateReturnLabelRequest body and refuses an empty one with 400.
+        body = hazmat_classification.nil? ? {} : { hazmatClassification: hazmat_classification }
         @http.post("#{ws_path}/returns/#{return_id}/label", body: body)
       end
 

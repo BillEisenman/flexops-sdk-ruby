@@ -60,7 +60,8 @@ RSpec.describe "HAZMAT declaration" do
     client.returns.generate_label("RMA-1")
     client.returns.generate_label("RMA-1", hazmat_classification: FlexOps::HazmatClassification::NONE)
 
-    expect(bodies[0].to_s).to eq("")
+    # The Gateway binds a required GenerateReturnLabelRequest body; {} takes its defaults.
+    expect(bodies[0]).to eq("{}")
     expect(JSON.parse(bodies[1])).to eq("hazmatClassification" => 0)
   end
 
