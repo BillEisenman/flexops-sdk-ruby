@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `FlexOps::HazmatClassification` constants (`NONE` = 0 ... `LITHIUM_BATTERY_USED_DEVICE` = 6, the Gateway numbers). Put `hazmatClassification:` in a label or rate request; it is sent only when you set it, and the SDK never defaults it. Labels without an `orderId` must declare it (`HazmatClassification::NONE` for an ordinary parcel).
+- `returns.generate_label(return_id, hazmat_classification:)` sends a declared HAZMAT class with a return label.
+
+### Fixed
+- `shipping.create_label` posts to the Gateway route `/api/shipping/labels`; it used a workspace-scoped path the Gateway does not serve.
+- `shipping.validate_address` posts the Gateway `{ address: {...} }` request to `/api/shipping/addresses/validate`, and maps a legacy `street1`/`state`/`zip` address to the Gateway field names.
+
 ## [1.1.0] - 2026-09-19
 
 ### Bounded label purchase support

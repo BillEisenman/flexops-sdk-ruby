@@ -27,9 +27,11 @@ module FlexOps
       end
 
       # Returns a raw preview or label; confirmation always belongs to the caller.
+      # A label without an orderId must declare hazmatClassification (a HazmatClassification;
+      # HazmatClassification::NONE for an ordinary parcel). The SDK never fills it in.
       def create_label(request = {}, idempotency_key: nil, **fields)
         request = request.merge(fields)
-        @http.post("#{ws_path}/shipping/labels", body: request,
+        @http.post("/api/shipping/labels", body: request,
                    headers: idempotency_key.nil? ? {} : { "Idempotency-Key" => idempotency_key })
       end
 
@@ -41,10 +43,13 @@ module FlexOps
         @http.get("#{ws_path}/shipping/track/#{tracking_number}")
       end
 
+      # Sends the Gateway AddressValidationRequest ({ address: {...} }). A legacy
+      # street1/state/zip address is mapped to the Gateway field names.
       def validate_address(address)
-        @http.post("#{ws_path}/shipping/addresses/validate", body: address)
+        @http.post("/api/shipping/addresses/validate", body: { address: to_shipping_address(address) })
       end
 
+      # The payload is sent as given. Set hazmatClassification on an item only when you have a declaration.
       def create_batch(request)
         @http.post("#{ws_path}/labels/batch", body: request)
       end
@@ -81,6 +86,23 @@ module FlexOps
 
       def ws_path
         "/api/workspaces/#{@ws_id.call}"
+      end
+
+      LEGACY_ADDRESS_FIELDS = {
+        "street1" => "addressLine1",
+        "street2" => "addressLine2",
+        "state" => "stateProvince",
+        "zip" => "postalCode",
+        "country" => "countryCode"
+      }.freeze
+
+      # Maps an address to the Gateway ShippingAddress; canonical input passes through.
+      def to_shipping_address(address)
+        return address unless address.key?(:street1) || address.key?("street1")
+
+        address.each_with_object({}) do |(key, value), mapped|
+          mapped[LEGACY_ADDRESS_FIELDS.fetch(key.to_s, key.to_s)] = value unless value.nil?
+        end
       end
     end
   end

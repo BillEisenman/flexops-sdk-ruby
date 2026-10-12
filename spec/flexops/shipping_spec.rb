@@ -38,7 +38,7 @@ RSpec.describe FlexOps::Resources::Shipping do
   describe "#create_label" do
     it "previews without purchasing and preserves approval and key across retries" do
       request = rate_request.merge(carrierCode: "USPS", serviceCode: "GROUND_ADVANTAGE", maximumPostageAmount: 10.25)
-      url = "#{ws_path}/shipping/labels"
+      url = "#{BASE_URL}/api/shipping/labels"
       preview_stub = stub_request(:post, url).with(body: request.to_json)
         .to_return(status: 200, body: {status: "Preview", confirmationToken: "approval",
           quotedPostageAmount: 8.5, maximumPostageAmount: 10.25, currency: "USD",
@@ -61,7 +61,7 @@ RSpec.describe FlexOps::Resources::Shipping do
 
     [[400, "ApprovalRequired"], [409, "ApprovalExpired"], [403, "FeatureDisabled"], [409, "OutcomeUnknown"]].each do |status, code|
       it "preserves #{code} without retrying" do
-        stub = stub_request(:post, "#{ws_path}/shipping/labels")
+        stub = stub_request(:post, "#{BASE_URL}/api/shipping/labels")
           .to_return(status: status, body: {errorCode: code, message: code}.to_json, headers: {"Content-Type" => "application/json"})
         expect { client.shipping.create_label({}) }.to raise_error(FlexOps::Error) { |e|
           expect(e.status).to eq(status)
@@ -122,7 +122,7 @@ RSpec.describe FlexOps::Resources::Shipping do
   describe "international customs contract" do
     it "preserves the declaration through explicit preview and purchase" do
       request = JSON.parse(File.read(File.expand_path("../../examples/international-label.json", __dir__)))
-      url = "#{ws_path}/shipping/labels"
+      url = "#{BASE_URL}/api/shipping/labels"
       preview_stub = stub_request(:post, url).with(body: request.to_json)
         .to_return(status: 200, body: {status: "Preview", confirmationToken: "approved"}.to_json, headers: {"Content-Type" => "application/json"})
       preview = client.shipping.create_label(request)
