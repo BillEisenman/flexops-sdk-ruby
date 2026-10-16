@@ -133,13 +133,35 @@ shipment = client.carriers.dhl.create_shipment(...)
 
 ## Webhook verification
 
+FlexOps signs each delivery with HMAC-SHA256 over `{X-FlexOps-Timestamp}.{raw body}`, keyed with your subscription secret (`whsec_...`, used as-is), and sends it as `X-FlexOps-Signature: sha256=<hex>`. Verify the raw body before you parse it.
+
 ```ruby
-valid = FlexOps::Resources::Webhooks.verify_signature(
-  payload:   request.body.read,
-  signature: request.headers["X-FlexOps-Signature"],
-  secret:    "whsec_..."
-)
+# Rails controller action
+def flexops_webhook
+  payload = request.raw_post
+
+  valid = FlexOps::Resources::Webhooks.verify_signature(
+    payload:   payload,
+    signature: request.headers["X-FlexOps-Signature"], # "sha256=..."
+    timestamp: request.headers["X-FlexOps-Timestamp"], # Unix seconds
+    secret:    ENV.fetch("FLEXOPS_WEBHOOK_SECRET")      # "whsec_..."
+  )
+  return head :unauthorized unless valid
+
+  # The body is the event data itself (no type/data envelope).
+  # The event name is in a header; test events send "test".
+  data = JSON.parse(payload)
+  case request.headers["X-FlexOps-Event"]
+  when "test"
+    # data: {"type"=>"test", "message"=>"...", "timestamp"=>"...", "subscriptionId"=>"..."}
+  when "TrackingUpdated"
+    # data["trackingNumber"], data["status"], ...
+  end
+  head :ok
+end
 ```
+
+Deliveries whose timestamp is more than 300 seconds from your clock (either way) are rejected to limit replays; pass `tolerance:` (seconds) to change that. `verify_signature!` takes the same arguments and raises `FlexOps::WebhookSignatureError` instead of returning `false`; its `code` says why (`WEBHOOK_SIGNATURE_MISMATCH`, `WEBHOOK_TIMESTAMP_OUTSIDE_TOLERANCE`, `WEBHOOK_INVALID_TIMESTAMP`, `WEBHOOK_MISSING_SIGNATURE`, `WEBHOOK_MISSING_SECRET`).
 
 ## Curl quickstart
 
