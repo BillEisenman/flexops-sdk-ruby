@@ -44,9 +44,69 @@ module FlexOps
         @http.get("#{ws_path}/webhooks/#{webhook_id}/deliveries")
       end
 
-      def self.verify_signature(payload, signature, secret)
-        expected = OpenSSL::HMAC.hexdigest("SHA256", secret, payload)
-        OpenSSL.secure_compare(expected, signature)
+      # Headers FlexOps sends with every webhook delivery.
+      EVENT_HEADER = "X-FlexOps-Event"         # event name; "test" for a test event
+      EVENT_ID_HEADER = "X-FlexOps-Event-Id"
+      TIMESTAMP_HEADER = "X-FlexOps-Timestamp" # Unix seconds, part of the signed string
+      SIGNATURE_HEADER = "X-FlexOps-Signature" # "sha256=" + lowercase hex HMAC-SHA256
+      DELIVERY_HEADER = "X-FlexOps-Delivery"
+
+      # Seconds the X-FlexOps-Timestamp may be from now, either way.
+      DEFAULT_TOLERANCE = 300
+
+      SIGNATURE_PREFIX = "sha256="
+      private_constant :SIGNATURE_PREFIX
+
+      # Returns true when a FlexOps webhook delivery is authentic and fresh,
+      # false otherwise. See verify_signature! for the arguments.
+      def self.verify_signature(payload:, signature:, timestamp:, secret:, tolerance: DEFAULT_TOLERANCE, now: Time.now)
+        verify_signature!(payload: payload, signature: signature, timestamp: timestamp,
+                          secret: secret, tolerance: tolerance, now: now)
+      rescue FlexOps::WebhookSignatureError
+        false
+      end
+
+      # Verifies a FlexOps webhook delivery and returns true, or raises
+      # FlexOps::WebhookSignatureError saying why.
+      #
+      # payload::   the raw request body exactly as received (verify before parsing it)
+      # signature:: the X-FlexOps-Signature value, "sha256=<hex>" (bare hex is accepted)
+      # timestamp:: the X-FlexOps-Timestamp value, Unix seconds
+      # secret::    the subscription secret ("whsec_..."), used as-is
+      # tolerance:: seconds the timestamp may be from +now+; non-positive keeps the default
+      # now::       the current time (a Time or Unix seconds), for tests
+      #
+      # FlexOps signs "{timestamp}.{body}" with HMAC-SHA256; the comparison is
+      # constant time.
+      def self.verify_signature!(payload:, signature:, timestamp:, secret:, tolerance: DEFAULT_TOLERANCE, now: Time.now)
+        if secret.nil? || secret.to_s.empty?
+          raise FlexOps::WebhookSignatureError.new("Webhook secret is empty", code: "WEBHOOK_MISSING_SECRET")
+        end
+        if signature.nil? || signature.to_s.empty?
+          raise FlexOps::WebhookSignatureError.new("Webhook signature header is missing", code: "WEBHOOK_MISSING_SIGNATURE")
+        end
+
+        timestamp = timestamp.to_s
+        unless timestamp.match?(/\A\d+\z/)
+          raise FlexOps::WebhookSignatureError.new("Webhook timestamp header is missing or not Unix seconds",
+                                                   code: "WEBHOOK_INVALID_TIMESTAMP")
+        end
+
+        tolerance = DEFAULT_TOLERANCE unless tolerance.is_a?(Numeric) && tolerance.positive?
+        if (now.to_i - timestamp.to_i).abs > tolerance
+          raise FlexOps::WebhookSignatureError.new("Webhook timestamp is outside the tolerance",
+                                                   code: "WEBHOOK_TIMESTAMP_OUTSIDE_TOLERANCE")
+        end
+
+        signed = "#{timestamp}.".b << payload.to_s.b
+        expected = OpenSSL::HMAC.hexdigest("SHA256", secret.to_s, signed)
+        received = signature.to_s.delete_prefix(SIGNATURE_PREFIX).downcase
+        # OpenSSL.secure_compare hashes both sides first, so unequal lengths are safe.
+        unless OpenSSL.secure_compare(expected, received)
+          raise FlexOps::WebhookSignatureError.new("Webhook signature does not match", code: "WEBHOOK_SIGNATURE_MISMATCH")
+        end
+
+        true
       end
 
       private

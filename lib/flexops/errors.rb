@@ -32,4 +32,13 @@ module FlexOps
       @retry_after = retry_after
     end
   end
+
+  # Raised by Resources::Webhooks.verify_signature! when a webhook delivery
+  # is not authentic or not fresh. +code+ says why, for example
+  # "WEBHOOK_SIGNATURE_MISMATCH" or "WEBHOOK_TIMESTAMP_OUTSIDE_TOLERANCE".
+  class WebhookSignatureError < Error
+    def initialize(message, code:)
+      super(message, code: code)
+    end
+  end
 end
