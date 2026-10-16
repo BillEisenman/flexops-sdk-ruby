@@ -142,9 +142,16 @@ RSpec.describe FlexOps::Resources::Webhooks do
     let(:ws_path) { "#{BASE_URL}/api/workspaces/ws-test-123" }
     let(:json_headers) { { "Content-Type" => "application/json" } }
 
-    def stub_create
-      stub_request(:post, "#{ws_path}/webhooks")
-        .to_return(status: 201, body: json_body({ id: "wh-001", eventTypes: "LabelCreated" }), headers: json_headers)
+    # The Gateway answers a create with 201 and the bare WebhookSubscriptionCreatedDto,
+    # not the success/data envelope its other webhook routes use.
+    let(:created) do
+      { id: "3f2c1a9e-0000-4000-8000-000000000001", url: "https://example.com/hook", description: nil,
+        eventTypes: "LabelCreated,BatchCompleted", status: "Active", secret: "whsec_test",
+        createdAt: "2026-10-16T12:00:00Z" }
+    end
+
+    def stub_create(body: created.to_json)
+      stub_request(:post, "#{ws_path}/webhooks").to_return(status: 201, body: body, headers: json_headers)
     end
 
     def stub_update
@@ -164,10 +171,33 @@ RSpec.describe FlexOps::Resources::Webhooks do
       result = client.webhooks.create({ url: "https://example.com/hook",
                                         events: [FlexOps::WebhookEventType::LABEL_CREATED, "BatchCompleted"] })
 
-      expect(result["success"]).to be true
-      expect(result["data"]["id"]).to eq("wh-001")
+      expect(result["id"]).to eq("3f2c1a9e-0000-4000-8000-000000000001")
       # The Gateway reads a comma-separated eventTypes (no spaces) and ignores an events field.
       expect(sent_body).to eq("url" => "https://example.com/hook", "eventTypes" => "LabelCreated,BatchCompleted")
+    end
+
+    it "returns the subscription with its signing secret from the Gateway's bare 201 body" do
+      stub_create
+
+      result = client.webhooks.create({ url: "https://example.com/hook" })
+
+      expect(result).to eq(JSON.parse(created.to_json))
+      expect(result["secret"]).to eq("whsec_test")
+    end
+
+    it "unwraps an enveloped create response, so the secret stays at the top level" do
+      stub_create(body: json_body(created))
+
+      result = client.webhooks.create({ url: "https://example.com/hook" })
+
+      expect(result).to eq(JSON.parse(created.to_json))
+      expect(result["secret"]).to eq("whsec_test")
+    end
+
+    it "keeps the envelope on other webhook routes" do
+      stub_update
+
+      expect(client.webhooks.update("wh-001", { status: "Paused" })).to eq("success" => true, "data" => { "id" => "wh-001" })
     end
 
     it "accepts string keys, symbol names and duplicates" do

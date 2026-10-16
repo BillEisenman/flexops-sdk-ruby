@@ -141,11 +141,13 @@ webhook = client.webhooks.create(
            FlexOps::WebhookEventType::LABEL_CANCELED,
            FlexOps::WebhookEventType::BATCH_COMPLETED]
 )
-signing_secret = webhook["data"]["secret"] # returned only on create; store it
+signing_secret = webhook["secret"] # "whsec_...", returned only on create; store it
 
 # Change the events (or url, description, status: "Active", "Paused", "Disabled").
-client.webhooks.update(webhook["data"]["id"], events: [FlexOps::WebhookEventType::LABEL_CREATED])
+client.webhooks.update(webhook["id"], events: [FlexOps::WebhookEventType::LABEL_CREATED])
 ```
+
+`create` returns the subscription itself (`"id"`, `"url"`, `"eventTypes"`, `"status"`, `"secret"`, ...), because the Gateway answers it with the bare subscription. The other webhook methods return the usual `{"success" => true, "data" => ...}` envelope.
 
 `events` is sent as the Gateway's comma-separated `eventTypes`. FlexOps sends these events, named exactly as below (`FlexOps::WebhookEventType::ALL` lists them). Names are PascalCase and matched exactly, so a name like `label.created` would never match; `create` and `update` raise `ArgumentError`, before any request, for an unknown name, an empty list or a non-array.
 

@@ -34,8 +34,13 @@ module FlexOps
       #
       # Raises ArgumentError, before any request, when +events+ is empty, is not an
       # array, names an event FlexOps does not send, or is given with +eventTypes+.
+      #
+      # Returns the new subscription itself ("id", "url", "eventTypes", "status",
+      # "secret", ...), not a success/data envelope: the Gateway answers 201 with the
+      # bare subscription. An enveloped answer is unwrapped, so "secret" (the whsec_...
+      # signing secret, returned only here) is always at the top level.
       def create(request)
-        @http.post("#{ws_path}/webhooks", body: to_wire_request(request))
+        unwrap_subscription(@http.post("#{ws_path}/webhooks", body: to_wire_request(request)))
       end
 
       # Updates a webhook subscription. +data+ takes +url+, +description+, +status+
@@ -146,6 +151,12 @@ module FlexOps
         end
 
         body.merge(eventTypes: to_event_types(events))
+      end
+
+      def unwrap_subscription(response)
+        return response unless response.is_a?(Hash) && response.key?("success") && response["data"].is_a?(Hash)
+
+        response["data"]
       end
 
       def to_event_types(events)
