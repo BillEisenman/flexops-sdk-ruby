@@ -9,6 +9,7 @@
 require_relative "flexops/version"
 require_relative "flexops/errors"
 require_relative "flexops/hazmat_classification"
+require_relative "flexops/webhook_event_type"
 require_relative "flexops/http"
 require_relative "flexops/client"
 require_relative "flexops/resources/auth"

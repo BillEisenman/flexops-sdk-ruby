@@ -131,6 +131,36 @@ info = client.carriers.ups.track(tracking_number: "1Z999AA10123456784")
 shipment = client.carriers.dhl.create_shipment(...)
 ```
 
+## Webhook subscriptions
+
+```ruby
+# Leave events out to receive every event.
+webhook = client.webhooks.create(
+  url: "https://your-app.com/webhooks/flexops",
+  events: [FlexOps::WebhookEventType::LABEL_CREATED,
+           FlexOps::WebhookEventType::LABEL_CANCELED,
+           FlexOps::WebhookEventType::BATCH_COMPLETED]
+)
+signing_secret = webhook["secret"] # "whsec_...", returned only on create; store it
+
+# Change the events (or url, description, status: "Active", "Paused", "Disabled").
+client.webhooks.update(webhook["id"], events: [FlexOps::WebhookEventType::LABEL_CREATED])
+```
+
+`create` returns the subscription itself (`"id"`, `"url"`, `"eventTypes"`, `"status"`, `"secret"`, ...), because the Gateway answers it with the bare subscription. The other webhook methods return the usual `{"success" => true, "data" => ...}` envelope.
+
+`events` is sent as the Gateway's comma-separated `eventTypes`. FlexOps sends these events, named exactly as below (`FlexOps::WebhookEventType::ALL` lists them). Names are PascalCase and matched exactly, so a name like `label.created` would never match; `create` and `update` raise `ArgumentError`, before any request, for an unknown name, an empty list or a non-array.
+
+| Event | Sent when |
+|---|---|
+| `LabelCreated` | A live label is purchased (sandbox labels send nothing) |
+| `LabelCanceled` | A live label is voided |
+| `BatchCompleted` | A batch label job finishes |
+| `TrackingUpdated` | A USPS tracking scan arrives (USPS push-tracking pilot workspaces only) |
+| `TrackingDelivered` | A USPS package is delivered (USPS push-tracking pilot workspaces only) |
+
+You can send a raw `eventTypes:` string (`"*"` or names joined by commas with no spaces) instead of `events:`; it is passed through unchecked, for example to subscribe to an event newer than your SDK version.
+
 ## Webhook verification
 
 FlexOps signs each delivery with HMAC-SHA256 over `{X-FlexOps-Timestamp}.{raw body}`, keyed with your subscription secret (`whsec_...`, used as-is), and sends it as `X-FlexOps-Signature: sha256=<hex>`. Verify the raw body before you parse it.

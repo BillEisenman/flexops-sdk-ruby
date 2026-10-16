@@ -140,17 +140,146 @@ RSpec.describe FlexOps::Resources::Webhooks do
   describe "CRUD operations" do
     let(:client) { create_client }
     let(:ws_path) { "#{BASE_URL}/api/workspaces/ws-test-123" }
+    let(:json_headers) { { "Content-Type" => "application/json" } }
 
-    it "creates a webhook subscription" do
-      webhook = { id: "wh-001", url: "https://example.com/hook", events: ["label.created"] }
+    # The Gateway answers a create with 201 and the bare WebhookSubscriptionCreatedDto,
+    # not the success/data envelope its other webhook routes use.
+    let(:created) do
+      { id: "3f2c1a9e-0000-4000-8000-000000000001", url: "https://example.com/hook", description: nil,
+        eventTypes: "LabelCreated,BatchCompleted", status: "Active", secret: "whsec_test",
+        createdAt: "2026-10-16T12:00:00Z" }
+    end
 
-      stub_request(:post, "#{ws_path}/webhooks")
-        .to_return(status: 200, body: json_body(webhook), headers: { "Content-Type" => "application/json" })
+    def stub_create(body: created.to_json)
+      stub_request(:post, "#{ws_path}/webhooks").to_return(status: 201, body: body, headers: json_headers)
+    end
 
-      result = client.webhooks.create({ url: "https://example.com/hook", events: ["label.created"] })
+    def stub_update
+      stub_request(:put, "#{ws_path}/webhooks/wh-001")
+        .to_return(status: 200, body: json_body({ id: "wh-001" }), headers: json_headers)
+    end
 
-      expect(result["success"]).to be true
-      expect(result["data"]["id"]).to eq("wh-001")
+    def sent_body
+      body = nil
+      expect(WebMock).to(have_requested(:any, %r{/webhooks}).with { |req| body = JSON.parse(req.body) })
+      body
+    end
+
+    it "creates a webhook subscription, sending events as the Gateway's comma-separated eventTypes" do
+      stub_create
+
+      result = client.webhooks.create({ url: "https://example.com/hook",
+                                        events: [FlexOps::WebhookEventType::LABEL_CREATED, "BatchCompleted"] })
+
+      expect(result["id"]).to eq("3f2c1a9e-0000-4000-8000-000000000001")
+      # The Gateway reads a comma-separated eventTypes (no spaces) and ignores an events field.
+      expect(sent_body).to eq("url" => "https://example.com/hook", "eventTypes" => "LabelCreated,BatchCompleted")
+    end
+
+    it "returns the subscription with its signing secret from the Gateway's bare 201 body" do
+      stub_create
+
+      result = client.webhooks.create({ url: "https://example.com/hook" })
+
+      expect(result).to eq(JSON.parse(created.to_json))
+      expect(result["secret"]).to eq("whsec_test")
+    end
+
+    it "unwraps an enveloped create response, so the secret stays at the top level" do
+      stub_create(body: json_body(created))
+
+      result = client.webhooks.create({ url: "https://example.com/hook" })
+
+      expect(result).to eq(JSON.parse(created.to_json))
+      expect(result["secret"]).to eq("whsec_test")
+    end
+
+    it "keeps the envelope on other webhook routes" do
+      stub_update
+
+      expect(client.webhooks.update("wh-001", { status: "Paused" })).to eq("success" => true, "data" => { "id" => "wh-001" })
+    end
+
+    it "accepts string keys, symbol names and duplicates" do
+      stub_create
+
+      client.webhooks.create({ "url" => "https://example.com/hook", "description" => "labels",
+                               "events" => [:LabelCreated, "LabelCanceled", "LabelCreated"] })
+
+      expect(sent_body).to eq("url" => "https://example.com/hook", "description" => "labels",
+                              "eventTypes" => "LabelCreated,LabelCanceled")
+    end
+
+    it "omits eventTypes when no events are given, so the subscription receives every event" do
+      stub_create
+
+      client.webhooks.create({ url: "https://example.com/hook" })
+      client.webhooks.create({ url: "https://example.com/hook", events: nil })
+
+      expect(WebMock).to have_requested(:post, "#{ws_path}/webhooks")
+        .with(body: { "url" => "https://example.com/hook" }).twice
+    end
+
+    it "passes an explicit eventTypes string through unchanged" do
+      stub_create
+
+      client.webhooks.create({ url: "https://example.com/hook", eventTypes: "*" })
+
+      expect(sent_body).to eq("url" => "https://example.com/hook", "eventTypes" => "*")
+    end
+
+    it "sends updated events as eventTypes" do
+      stub_update
+
+      client.webhooks.update("wh-001", { events: [FlexOps::WebhookEventType::LABEL_CANCELED], status: "Active" })
+
+      expect(sent_body).to eq("eventTypes" => "LabelCanceled", "status" => "Active")
+    end
+
+    it "does not modify the caller's hash" do
+      stub_update
+      data = { events: ["LabelCreated"] }
+
+      client.webhooks.update("wh-001", data)
+
+      expect(data).to eq(events: ["LabelCreated"])
+    end
+
+    [
+      ["a dotted name", ["label.created"]],
+      ["a name FlexOps never sends", %w[LabelCreated ShipmentCreated]],
+      ["a name with spaces", [" LabelCreated"]],
+      ["an empty list", []],
+      ["a single string", "LabelCreated"],
+      ["a nil name", [nil]]
+    ].each do |label, events|
+      it "refuses #{label} on create and update without calling the API" do
+        expect { client.webhooks.create({ url: "https://example.com/hook", events: events }) }
+          .to raise_error(ArgumentError)
+        expect { client.webhooks.update("wh-001", { events: events }) }.to raise_error(ArgumentError)
+
+        expect(WebMock).not_to have_requested(:any, //)
+      end
+    end
+
+    it "names the unknown event and the events FlexOps sends" do
+      expect { client.webhooks.create({ url: "https://example.com/hook", events: ["label.created"] }) }
+        .to raise_error(ArgumentError, /label\.created.*LabelCreated, LabelCanceled, BatchCompleted/)
+    end
+
+    it "refuses events together with eventTypes" do
+      expect { client.webhooks.create({ url: "https://example.com/hook", events: ["LabelCreated"], eventTypes: "*" }) }
+        .to raise_error(ArgumentError, /not both/)
+      expect(WebMock).not_to have_requested(:any, //)
+    end
+  end
+
+  describe "FlexOps::WebhookEventType" do
+    it "lists the event names the Gateway sends" do
+      expect(FlexOps::WebhookEventType::ALL).to eq(
+        %w[LabelCreated LabelCanceled BatchCompleted TrackingUpdated TrackingDelivered]
+      )
+      expect(FlexOps::WebhookEventType::ALL).to be_frozen
     end
   end
 end

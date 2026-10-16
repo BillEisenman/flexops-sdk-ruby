@@ -24,12 +24,30 @@ module FlexOps
         @http.get("#{ws_path}/webhooks/#{webhook_id}")
       end
 
+      # Creates a webhook subscription.
+      #
+      # request:: a hash with +url+, optional +description+ and optional +events+, an
+      #           array of FlexOps::WebhookEventType names (strings or symbols). +events+
+      #           is sent as the Gateway's comma-separated +eventTypes+; leave it out to
+      #           receive every event. A raw +eventTypes+ string ("*" or comma-separated
+      #           names, no spaces) is sent unchanged instead.
+      #
+      # Raises ArgumentError, before any request, when +events+ is empty, is not an
+      # array, names an event FlexOps does not send, or is given with +eventTypes+.
+      #
+      # Returns the new subscription itself ("id", "url", "eventTypes", "status",
+      # "secret", ...), not a success/data envelope: the Gateway answers 201 with the
+      # bare subscription. An enveloped answer is unwrapped, so "secret" (the whsec_...
+      # signing secret, returned only here) is always at the top level.
       def create(request)
-        @http.post("#{ws_path}/webhooks", body: request)
+        unwrap_subscription(@http.post("#{ws_path}/webhooks", body: to_wire_request(request)))
       end
 
+      # Updates a webhook subscription. +data+ takes +url+, +description+, +status+
+      # ("Active", "Paused" or "Disabled") and +events+, which replaces the subscribed
+      # events and is sent as +eventTypes+. Raises ArgumentError as #create does.
       def update(webhook_id, data)
-        @http.put("#{ws_path}/webhooks/#{webhook_id}", body: data)
+        @http.put("#{ws_path}/webhooks/#{webhook_id}", body: to_wire_request(data))
       end
 
       def delete(webhook_id)
@@ -113,6 +131,50 @@ module FlexOps
 
       def ws_path
         "/api/workspaces/#{@ws_id.call}"
+      end
+
+      # The Gateway reads a comma-separated eventTypes string, ignores an events field
+      # (subscribing to every event) and matches each name exactly, so a name it never
+      # sends would leave the subscription silent; it is refused here instead.
+      def to_wire_request(request)
+        return request unless request.is_a?(Hash)
+
+        events_key = [:events, "events"].find { |key| request.key?(key) }
+        return request if events_key.nil?
+
+        body = request.reject { |key, _| key == events_key }
+        events = request[events_key]
+        return body if events.nil?
+
+        if [:eventTypes, "eventTypes"].any? { |key| body.key?(key) }
+          raise ArgumentError, "Pass events or eventTypes, not both."
+        end
+
+        body.merge(eventTypes: to_event_types(events))
+      end
+
+      def unwrap_subscription(response)
+        return response unless response.is_a?(Hash) && response.key?("success") && response["data"].is_a?(Hash)
+
+        response["data"]
+      end
+
+      def to_event_types(events)
+        unless events.is_a?(Array)
+          raise ArgumentError, "events must be an array of event names, not #{events.class}."
+        end
+        if events.empty?
+          raise ArgumentError, "events must name at least one event; leave it out to receive every event."
+        end
+
+        names = events.map { |event| event.is_a?(String) || event.is_a?(Symbol) ? event.to_s : event.inspect }.uniq
+        unknown = names - FlexOps::WebhookEventType::ALL
+        unless unknown.empty?
+          raise ArgumentError, "Unknown webhook event: #{unknown.join(", ")}. " \
+                               "FlexOps sends #{FlexOps::WebhookEventType::ALL.join(", ")}."
+        end
+
+        names.join(",")
       end
     end
   end
