@@ -20,9 +20,13 @@ module FlexOps
       end
 
       # Buys an offset for a shipment and debits the workspace wallet.
-      def purchase(tracking_number:, weight_lbs:, distance_miles:)
+      # Pass an idempotency_key you store with the purchase to make your own retry safe: after an
+      # error or a timeout, retry with the same key and the Gateway returns the first result instead
+      # of buying again. Without one, the SDK's own retries still share a key, but a new call gets a new key.
+      def purchase(tracking_number:, weight_lbs:, distance_miles:, idempotency_key: nil)
         @http.post("#{ws_path}/purchase",
-                   body: { trackingNumber: tracking_number, weightLbs: weight_lbs, distanceMiles: distance_miles })
+                   body: { trackingNumber: tracking_number, weightLbs: weight_lbs, distanceMiles: distance_miles },
+                   headers: idempotency_key.nil? ? {} : { "Idempotency-Key" => idempotency_key })
       end
 
       def list(page: nil, page_size: nil)

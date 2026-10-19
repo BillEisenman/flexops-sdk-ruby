@@ -43,6 +43,8 @@ Every method left calls an operation in the Developer Docs OpenAPI reference; a 
 
 ### Added
 - `client.carbon_offsets`: `quote`, `purchase`, `list`, `get`, `summary`, `get_settings` and `update_settings`.
+- `insurance.purchase` and `carbon_offsets.purchase` accept `idempotency_key:`. Store it with the purchase and reuse
+  it when your app retries, so the Gateway returns the first result instead of charging again.
 - `rules.test(request)` evaluates the shipping rules against a sample shipment.
 - `webhooks.test(webhook_id)` sends a test event.
 - `FlexOps::WorkspaceRole` constants (`OWNER` 0, `ADMIN` 1, `MEMBER` 2, `MERCHANT` 3).

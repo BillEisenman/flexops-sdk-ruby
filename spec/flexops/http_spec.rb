@@ -39,6 +39,22 @@ RSpec.describe FlexOps::HttpClient do
       expect(keys[1]).to eq(keys[0])
     end
 
+    it "sends the caller's purchase key on every attempt, so the app's own retry is safe too" do
+      ws = "#{BASE_URL}/api/workspaces/ws-test-123"
+      policy_keys = record_keys(:post, "#{ws}/insurance/policies", json(503, message: "Unavailable"), json(201, id: "pol-1"))
+      offset_keys = record_keys(:post, "#{ws}/carbon-offsets/purchase", json(201, id: "off-1"))
+
+      client.insurance.purchase(tracking_number: "9400", carrier_code: "USPS", declared_value: 100,
+                                idempotency_key: "order-42-insurance")
+      2.times do
+        client.carbon_offsets.purchase(tracking_number: "9400", weight_lbs: 2, distance_miles: 300,
+                                       idempotency_key: "order-42-offset")
+      end
+
+      expect(policy_keys).to eq(%w[order-42-insurance order-42-insurance])
+      expect(offset_keys).to eq(%w[order-42-offset order-42-offset])
+    end
+
     it "generates a new key for each separate write" do
       keys = record_keys(:post, hooks_url, json(201, id: "wh-1"))
 

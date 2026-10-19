@@ -25,10 +25,17 @@ module FlexOps
         @http.post("#{ws_path}/insurance/quote", body: body)
       end
 
-      def purchase(tracking_number:, carrier_code:, declared_value:, coverage_tier: nil, provider: nil)
+      # Buys a policy and charges the premium to the workspace wallet. A shipment that already has a
+      # policy in force is refused with 409 ALREADY_EXISTS.
+      # Pass an idempotency_key you store with the purchase to make your own retry safe: after an
+      # error or a timeout, retry with the same key and the Gateway returns the first result instead
+      # of buying again. Without one, the SDK's own retries still share a key, but a new call gets a new key.
+      def purchase(tracking_number:, carrier_code:, declared_value:, coverage_tier: nil, provider: nil,
+                   idempotency_key: nil)
         body = { trackingNumber: tracking_number, carrierCode: carrier_code, declaredValue: declared_value,
                  coverageTier: coverage_tier, provider: provider }.compact
-        @http.post("#{ws_path}/insurance/policies", body: body)
+        @http.post("#{ws_path}/insurance/policies", body: body,
+                   headers: idempotency_key.nil? ? {} : { "Idempotency-Key" => idempotency_key })
       end
 
       def void(policy_id)

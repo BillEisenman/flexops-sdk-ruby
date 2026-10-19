@@ -157,7 +157,9 @@ and raises `FlexOps::Error` with that `code`. Error codes are matched exactly, s
 purchase's own 409 `IdempotencyConflict` (altered inputs under a used key) is not retried either.
 
 Every POST, PUT and PATCH carries an `Idempotency-Key` header. Pass your own to
-`shipping.create_label(request, idempotency_key: ...)`; otherwise the client generates one UUID
+`shipping.create_label(request, idempotency_key: ...)`, `insurance.purchase(..., idempotency_key: ...)`
+or `carbon_offsets.purchase(..., idempotency_key: ...)`, and store it so a retry your app makes after
+an error or a timeout reuses it; otherwise the client generates one UUID
 per call and sends it on every retry of that call, so the Gateway replays a write it already
 finished instead of running it twice. A 2xx response with no body returns `nil`.
 
