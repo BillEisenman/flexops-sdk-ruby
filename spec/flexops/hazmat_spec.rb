@@ -77,17 +77,20 @@ RSpec.describe "HAZMAT declaration" do
     expect(bodies).to eq([{ "weightOz" => 16, "lengthIn" => 10, "widthIn" => 8, "heightIn" => 4 }])
   end
 
-  it "sends address validation as the Gateway AddressValidationRequest" do
-    canonical = { "addressLine1" => "123 Main St", "city" => "New York", "stateProvince" => "NY",
-                  "postalCode" => "10001", "countryCode" => "US" }
+  it "sends address validation as the documented flat AddressValidationRequest" do
+    canonical = { "addressLine1" => "123 Main St", "addressLine2" => "Apt 4", "city" => "New York",
+                  "stateProvince" => "NY", "postalCode" => "10001", "countryCode" => "US", "company" => "Acme" }
+    flat = { "line1" => "123 Main St", "city" => "New York", "state" => "NY", "postalCode" => "10001", "country" => "US" }
     bodies = []
-    stub_request(:post, "#{BASE_URL}/api/shipping/addresses/validate").with { |req| bodies << JSON.parse(req.body) }
+    stub_request(:post, "#{BASE_URL}/api/addresses/validate").with { |req| bodies << JSON.parse(req.body) }
       .to_return(status: 200, body: '{"isValid":true}', headers: json_headers)
 
-    client.shipping.validate_address(name: "J", street1: "123 Main St", city: "New York", state: "NY",
-                                     zip: "10001", country: "US")
+    result = client.shipping.validate_address(name: "J", street1: "123 Main St", city: "New York", state: "NY",
+                                              zip: "10001", country: "US")
     client.shipping.validate_address(canonical)
+    client.shipping.validate_address(flat)
 
-    expect(bodies).to eq([{ "address" => { "name" => "J" }.merge(canonical) }, { "address" => canonical }])
+    expect(result["isValid"]).to be true
+    expect(bodies).to eq([{ "name" => "J" }.merge(flat), flat.merge("line2" => "Apt 4"), flat])
   end
 end

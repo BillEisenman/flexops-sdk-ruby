@@ -97,7 +97,8 @@ client = FlexOps::Client.new(api_key: "fxk_live_...", workspace_id: "ws_abc123")
 
 ```ruby
 client = FlexOps::Client.new(base_url: "https://gateway.flexops.io")
-client.auth.login(email: "user@example.com", password: "password")
+session = client.auth.login(email: "user@example.com", password: "password")
+client.set_access_token(session["data"]["token"])
 client.workspace_id = "ws_abc123"
 ```
 
@@ -109,27 +110,113 @@ Use `fxk_test_...` (instead of `fxk_live_...`) to route to the sandbox environme
 client = FlexOps::Client.new(api_key: "fxk_test_...", workspace_id: "ws_abc123")
 ```
 
-## Direct carrier operations
+## Carrier-specific calls
 
-Access carrier-specific endpoints when you need full control:
+`client.carriers.usps`, `.ups`, `.fedex` and `.dhl` call carrier routes through the legacy
+`/api/ApiProxy` passthrough, which the Gateway retires on 2027-06-30.
+
+- Lookups (GET), such as address checks, tracking and DHL rates, work with an API key or a user
+  token.
+- The writes (POST, PUT and DELETE, such as `usps.get_domestic_rates`, `fedex.cancel_shipment`
+  or `ups.create_pickup`) are deprecated. They need a user token from `auth.login`: API keys get
+  403 `API_KEY_SCOPE_REQUIRED`, and no API-key scope will be added for them. They stop working when
+  the proxy is retired.
+- Label generation through the proxy is closed (410 Gone), so the SDK has no carrier label
+  method.
+
+Use the native routes instead where they cover the call:
+
+| Instead of | Use |
+|---|---|
+| Carrier rate calls | `client.shipping.get_rates` |
+| Carrier labels | `client.shipping.create_label` (`client.returns.generate_label` for returns) |
+| Label cancels | `client.shipping.cancel_label` |
+| Carrier pickups | `client.pickups.schedule`, `list`, `get`, `cancel` |
+| USPS scan forms | `client.scan_forms.create` |
+| Address validation | `client.shipping.validate_address` |
+| Tracking | `client.shipping.track` |
 
 ```ruby
-# USPS domestic label
-label = client.carriers.usps.create_domestic_label(
-  image_type: "PDF",
-  mail_class: "PRIORITY_MAIL",
-  weight_in_ounces: 16
-)
-
-# FedEx rate quote
-rates = client.carriers.fedex.get_rates(...)
-
-# UPS tracking
-info = client.carriers.ups.track(tracking_number: "1Z999AA10123456784")
-
-# DHL shipment
-shipment = client.carriers.dhl.create_shipment(...)
+# USPS city and state for a ZIP code (works with an API key)
+place = client.carriers.usps.city_state_lookup("10001")
 ```
+
+## Retries and idempotency
+
+The client retries a request up to three times with exponential backoff:
+
+- GET: after a dropped connection or timeout, and on 429, 500, 502, 503 and 504.
+- POST, PUT and PATCH: after a dropped connection or timeout, and on 429, 502, 503, 504 and
+  409 `IDEMPOTENCY_CONFLICT` (the first request with that key is still running). Never on 500:
+  the Gateway does not replay a 5xx, so a retry could run the write (and charge the wallet)
+  again.
+- DELETE: only on 429.
+
+A key reused with a different request body gets 422 `IDEMPOTENCY_KEY_REUSED`; it is not retried
+and raises `FlexOps::Error` with that `code`. Error codes are matched exactly, so a label
+purchase's own 409 `IdempotencyConflict` (altered inputs under a used key) is not retried either.
+
+Every POST, PUT and PATCH carries an `Idempotency-Key` header. Pass your own to
+`shipping.create_label(request, idempotency_key: ...)`, `insurance.purchase(..., idempotency_key: ...)`
+or `carbon_offsets.purchase(..., idempotency_key: ...)`, and store it so a retry your app makes after
+an error or a timeout reuses it; otherwise the client generates one UUID
+per call and sends it on every retry of that call, so the Gateway replays a write it already
+finished instead of running it twice. A 2xx response with no body returns `nil`.
+
+## Workspace members
+
+Roles are the Gateway `WorkspaceRole` numbers (Owner 0, Admin 1, Member 2, Merchant 3). Pass a
+`FlexOps::WorkspaceRole` constant or a name; the SDK sends the number.
+
+```ruby
+client.workspaces.invite_member(email: "ops@example.com", role: :member)
+client.workspaces.update_member_role(user_id, FlexOps::WorkspaceRole::ADMIN)
+
+result = client.workspaces.list_members
+members = result["data"]["members"] # also "pendingInvites", "userLimit", "canInviteMore"
+```
+
+## Recurring shipments, report schedules and email templates
+
+Reads work with any API key or a user token. Writes (every POST, PUT and DELETE, including the
+email template preview) need a user token from `auth.login` or an API key granted the
+resource's opt-in scope: `recurring-shipments:write`, `report-schedules:write` or
+`email-templates:write`. Older keys do not have these scopes; a key without one gets 403
+`API_KEY_SCOPE_REQUIRED` with `requiredScopes`. Enums are sent as numbers and ids are GUID
+strings.
+
+```ruby
+# Recurring shipments (bare JSON). interval: Daily 0, Weekly 1, Biweekly 2, Monthly 3, Custom 4
+schedule = client.recurring_shipments.create(
+  name: "Weekly restock", addressId: address_id, presetId: preset_id,
+  interval: 1, firstRunUtc: "2026-11-02T14:00:00Z"
+)
+client.recurring_shipments.pause(schedule["id"])  # nil (204); also resume, delete
+client.recurring_shipments.trigger(schedule["id"], idempotency_key: run_key) # creates an order now
+
+# Report schedules ({ success, data, message } envelope).
+# format: Csv 0, Json 1; frequencyType: Daily 0, Weekly 1, Monthly 2
+report = client.report_schedules.create(
+  reportType: "shipments", format: 0, frequencyType: 1, dayOfWeek: 1,
+  timeOfDayUtc: "08:00:00", recipientEmails: "ops@example.com"
+)["data"]
+client.report_schedules.toggle(report["id"]) # flips isEnabled
+
+# Tracking email templates (bare JSON), one per event. eventType: LabelCreated 0, InTransit 1,
+# OutForDelivery 2, Delivered 3, Exception 4, ReturnToSender 5
+client.email_templates.upsert(eventType: 3, subjectTemplate: "Delivered: {{tracking_number}}",
+                              htmlBodyTemplate: "<p>Your package arrived.</p>")
+client.email_templates.preview(subject_template: "Hi {{recipient_name}}", html_body_template: "<p>{{status}}</p>")
+```
+
+## Wallet balance
+
+```ruby
+balance = client.wallet.get_balance # {"hasWallet" => true, "balanceCents" => 1250, "balance" => 12.5}
+```
+
+The request carries `X-Workspace-Id` set to the client's `workspace_id`. Funding and
+transaction history are managed in the FlexOps portal.
 
 ## Webhook subscriptions
 
@@ -230,8 +317,8 @@ curl -X POST https://gateway.flexops.io/api/shipping/labels \
 curl https://gateway.flexops.io/api/shipping/track/9400111899223456789012 \
   -H "X-API-Key: fxk_live_..."
 
-# Cancel a label (via the unified carrier-agnostic endpoint)
-curl -X DELETE https://gateway.flexops.io/api/v3.0/shipping/Usps/cancel/9400111899223456789012 \
+# Cancel a label
+curl -X DELETE "https://gateway.flexops.io/api/shipping/labels/lbl_123?carrierCode=USPS" \
   -H "X-API-Key: fxk_live_..."
 ```
 
@@ -241,26 +328,27 @@ Use an `fxk_test_...` key instead of `fxk_live_...` to hit the sandbox environme
 
 | Resource | Description |
 |----------|-------------|
-| `client.auth` | Login, register, password management |
-| `client.workspaces` | Workspace CRUD, membership, branding |
-| `client.shipping` | Rate shopping, labels, tracking, batch, cancel |
-| `client.carriers` | USPS, UPS, FedEx, DHL direct endpoints |
-| `client.webhooks` | Subscription CRUD, signature verification, delivery logs |
-| `client.wallet` | Balance, transactions, auto-reload |
-| `client.insurance` | Quotes, purchase, claims (first-party + U-PIC) |
-| `client.returns` | RMA lifecycle: create, batch, QR codes, photo upload, cost recovery |
-| `client.api_keys` | Key creation, rotation, revocation |
-| `client.analytics` | Shipments, orders, carrier performance |
-| `client.orders` | Order management |
-| `client.inventory` | Warehouse inventory |
-| `client.pickups` | Carrier pickup scheduling |
+| `client.auth` | Login, token refresh, logout |
+| `client.workspaces` | List and read workspaces; list, invite and remove members, change roles |
+| `client.shipping` | Rate shopping, labels, tracking, address validation, batch, cancel |
+| `client.carriers` | USPS, UPS, FedEx and DHL calls through the legacy proxy; writes are deprecated and need a user token |
+| `client.webhooks` | Subscription create/update/delete, secret rotation, test events, delivery logs, signature verification |
+| `client.wallet` | Workspace balance |
+| `client.insurance` | Providers, quotes, policies, void, claims |
+| `client.returns` | List and read returns; create RMAs, return labels, receive |
+| `client.analytics` | Shipments, orders, carrier performance (legacy proxy reads) |
+| `client.orders` | Order reads (legacy proxy) |
+| `client.inventory` | Inventory reads (legacy proxy) |
+| `client.pickups` | Schedule, list, read and cancel carrier pickups |
 | `client.scan_forms` | USPS scan forms |
-| `client.rules` | Shipping automation rules |
-| `client.offsets` | Carbon offset purchases |
-| `client.hs_codes` | HS code lookup for international customs |
-| `client.recurring_shipments` | Scheduled recurring shipments |
-| `client.email_templates` | Branded post-purchase email templates |
-| `client.reports` | Report generation and scheduled delivery |
+| `client.rules` | Shipping rules: create, read, update, delete, reorder, test |
+| `client.hs_codes` | HS code search and lookup, landed cost |
+| `client.carbon_offsets` | Carbon offset quotes, purchases, summary and settings |
+| `client.recurring_shipments` | Recurring shipment schedules: create, update, pause, resume, trigger, delete |
+| `client.report_schedules` | Scheduled report emails: create, update, toggle, delete |
+| `client.email_templates` | Tracking email templates: upsert, preview, delete |
+
+API keys, workspace settings and account management are managed in the FlexOps portals.
 
 ## Configuration
 
@@ -275,7 +363,7 @@ client = FlexOps::Client.new(
 
 ## Requirements
 
-- Ruby 3.0+
+- Ruby 3.1+
 
 ## License
 

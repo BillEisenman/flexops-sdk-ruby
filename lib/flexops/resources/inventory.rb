@@ -15,10 +15,6 @@ module FlexOps
         @http = http
       end
 
-      def post_asn_receipt(receipt)
-        @http.post("#{PROXY}/api/v1/Inventory/postNewAsnReceipt", body: receipt)
-      end
-
       def get_warehouse_snapshot(params = nil)
         @http.get("#{PROXY}/api/v1/Inventory/getWarehouseInventorySnapshot", query: params)
       end
@@ -29,10 +25,6 @@ module FlexOps
 
       def get_part_numbers(params = nil)
         @http.get("#{PROXY}/api/v1/Inventory/getPartNumberList", query: params)
-      end
-
-      def update_inventory(data)
-        @http.post("#{PROXY}/api/v2/Inventory/postCustomerInventoryUpdate", body: data)
       end
     end
   end

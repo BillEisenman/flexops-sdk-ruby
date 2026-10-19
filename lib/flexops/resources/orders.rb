@@ -15,10 +15,6 @@ module FlexOps
         @http = http
       end
 
-      def create(order)
-        @http.post("#{BASE}/postNewOrder", body: order)
-      end
-
       def get_new_orders(params = nil)
         @http.get("#{BASE}/getNewOrderList", query: params)
       end
@@ -37,10 +33,6 @@ module FlexOps
 
       def get_status(order_number)
         @http.get("#{BASE}/getIndividualOrderStatusByOrderNumber", query: { orderNumber: order_number })
-      end
-
-      def cancel(order_number)
-        @http.post("#{BASE}/cancelOrderByOrderNumber", body: { orderNumber: order_number })
       end
 
       def get_items(order_number)

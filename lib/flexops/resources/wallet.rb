@@ -14,27 +14,11 @@ module FlexOps
         @ws_id = ws_id_proc
       end
 
+      # Returns the configured workspace's balance, bare: { "hasWallet", "balanceCents", "balance" }.
+      # Funding and transaction history are managed in the FlexOps portal.
       def get_balance
-        @http.get("#{ws_path}/wallet/balance")
-      end
-
-      def add_funds(amount)
-        @http.post("#{ws_path}/wallet/add-funds", body: { amount: amount })
-      end
-
-      def list_transactions(page: nil, page_size: nil, start_date: nil, end_date: nil)
-        query = { page: page, pageSize: page_size, startDate: start_date, endDate: end_date }.compact
-        @http.get("#{ws_path}/wallet/transactions", query: query.empty? ? nil : query)
-      end
-
-      def configure_auto_reload(enabled:, threshold: nil, amount: nil)
-        @http.put("#{ws_path}/wallet/auto-reload", body: { enabled: enabled, threshold: threshold, amount: amount }.compact)
-      end
-
-      private
-
-      def ws_path
-        "/api/workspaces/#{@ws_id.call}"
+        ws_id = @ws_id.call
+        @http.get("/api/wallet/my-balance", headers: ws_id.to_s.empty? ? {} : { "X-Workspace-Id" => ws_id.to_s })
       end
     end
   end

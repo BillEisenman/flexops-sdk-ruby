@@ -8,19 +8,34 @@
 
 RSpec.describe FlexOps::Client do
   describe "initialization" do
-    it "creates a client with all 20 resource accessors" do
+    it "creates a client with all 19 resource accessors" do
       client = create_client
       expect(client.auth).to be_a(FlexOps::Resources::Auth)
+      expect(client.workspaces).to be_a(FlexOps::Resources::Workspaces)
       expect(client.shipping).to be_a(FlexOps::Resources::Shipping)
       expect(client.webhooks).to be_a(FlexOps::Resources::Webhooks)
       expect(client.carriers).to be_a(FlexOps::Resources::Carriers)
       expect(client.wallet).to be_a(FlexOps::Resources::Wallet)
+      expect(client.insurance).to be_a(FlexOps::Resources::Insurance)
       expect(client.returns).to be_a(FlexOps::Resources::Returns)
-      expect(client.offsets).to be_a(FlexOps::Resources::Offsets)
+      expect(client.analytics).to be_a(FlexOps::Resources::Analytics)
+      expect(client.orders).to be_a(FlexOps::Resources::Orders)
+      expect(client.inventory).to be_a(FlexOps::Resources::Inventory)
+      expect(client.pickups).to be_a(FlexOps::Resources::Pickups)
+      expect(client.scan_forms).to be_a(FlexOps::Resources::ScanForms)
+      expect(client.rules).to be_a(FlexOps::Resources::Rules)
       expect(client.hs_codes).to be_a(FlexOps::Resources::HsCodes)
+      expect(client.carbon_offsets).to be_a(FlexOps::Resources::CarbonOffsets)
       expect(client.recurring_shipments).to be_a(FlexOps::Resources::RecurringShipments)
+      expect(client.report_schedules).to be_a(FlexOps::Resources::ReportSchedules)
       expect(client.email_templates).to be_a(FlexOps::Resources::EmailTemplates)
-      expect(client.reports).to be_a(FlexOps::Resources::Reports)
+    end
+
+    it "no longer exposes the resources removed or renamed in 2.0" do
+      client = create_client
+      %i[api_keys offsets reports].each do |name|
+        expect(client).not_to respond_to(name)
+      end
     end
   end
 
