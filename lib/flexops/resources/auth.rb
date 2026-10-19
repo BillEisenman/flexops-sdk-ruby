@@ -8,6 +8,8 @@
 
 module FlexOps
   module Resources
+    # Token acquisition for operations that need a signed-in user. Account management
+    # (registration, profile, passwords) belongs to the FlexOps portals.
     class Auth
       def initialize(http)
         @http = http
@@ -17,40 +19,17 @@ module FlexOps
         @http.post("/api/Account/login", body: { email: email, password: password })
       end
 
-      def register(request)
-        @http.post("/api/Account/register", body: request)
-      end
+      # The Gateway RefreshTokenRequest requires the expired access token as well as the refresh
+      # token; it defaults to the client's current access token.
+      def refresh_token(refresh_token, access_token: nil)
+        token = access_token || @http.access_token
+        raise ArgumentError, "access_token is required to refresh a session" if token.to_s.empty?
 
-      def refresh_token(refresh_token)
-        @http.post("/api/Account/refresh-token", body: { refreshToken: refresh_token })
+        @http.post("/api/Account/refresh-token", body: { token: token, refreshToken: refresh_token })
       end
 
       def logout
         @http.post("/api/Account/logout")
-      end
-
-      def get_profile
-        @http.get("/api/Account/profile")
-      end
-
-      def update_profile(data)
-        @http.put("/api/Account/profile", body: data)
-      end
-
-      def change_password(current_password:, new_password:)
-        @http.post("/api/Account/change-password", body: { currentPassword: current_password, newPassword: new_password })
-      end
-
-      def forgot_password(email:)
-        @http.post("/api/Account/forgot-password", body: { email: email })
-      end
-
-      def reset_password(token:, new_password:)
-        @http.post("/api/Account/reset-password", body: { token: token, newPassword: new_password })
-      end
-
-      def verify_email(token:)
-        @http.post("/api/Account/verify-email", body: { token: token })
       end
     end
   end

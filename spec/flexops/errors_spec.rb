@@ -81,19 +81,19 @@ RSpec.describe "Error handling" do
   end
 
   describe "retry on 5xx" do
-    it "retries on 500 and succeeds on the second attempt" do
+    it "retries a GET on 500 and succeeds on the second attempt" do
       # First call returns 500, second succeeds
-      stub_request(:post, "#{BASE_URL}/api/shipping/rates")
+      stub_request(:get, "#{BASE_URL}/api/shipping/carriers")
         .to_return(
           { status: 500, body: { message: "Internal error" }.to_json,
             headers: { "Content-Type" => "application/json" } },
-          { status: 200, body: json_body([{ carrier: "USPS", rate: 5.25 }]),
+          { status: 200, body: json_body([{ carrierCode: "USPS" }]),
             headers: { "Content-Type" => "application/json" } }
         )
 
       allow_any_instance_of(FlexOps::HttpClient).to receive(:sleep)
 
-      result = client.shipping.get_rates(rate_request)
+      result = client.shipping.get_carriers
 
       expect(result["success"]).to be true
       expect(result["data"].length).to eq(1)

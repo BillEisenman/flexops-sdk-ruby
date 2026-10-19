@@ -20,10 +20,6 @@ module FlexOps
         @http.get("#{ws_path}/webhooks")
       end
 
-      def get(webhook_id)
-        @http.get("#{ws_path}/webhooks/#{webhook_id}")
-      end
-
       # Creates a webhook subscription.
       #
       # request:: a hash with +url+, optional +description+ and optional +events+, an
@@ -60,6 +56,11 @@ module FlexOps
 
       def list_delivery_logs(webhook_id)
         @http.get("#{ws_path}/webhooks/#{webhook_id}/deliveries")
+      end
+
+      # Sends a test event (X-FlexOps-Event "test") to the subscription's URL.
+      def test(webhook_id)
+        @http.post("#{ws_path}/webhooks/#{webhook_id}/test")
       end
 
       # Headers FlexOps sends with every webhook delivery.

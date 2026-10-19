@@ -23,30 +23,25 @@ module FlexOps
         @http.get("/api/workspaces/#{id}")
       end
 
-      def create(request)
-        @http.post("/api/workspaces", body: request)
-      end
-
-      def update(data)
-        @http.put("/api/workspaces/#{@ws_id.call}", body: data)
-      end
-
       def list_members
         @http.get("/api/workspaces/#{@ws_id.call}/members")
       end
 
-      def invite_member(email:, role: nil)
-        body = { email: email }
-        body[:role] = role if role
-        @http.post("/api/workspaces/#{@ws_id.call}/members/invite", body: body)
+      # Invites a member. +role+ is a FlexOps::WorkspaceRole number or name (for example
+      # :member); it is required because the Gateway reads a missing role as Owner.
+      def invite_member(email:, role:)
+        @http.post("/api/workspaces/#{@ws_id.call}/members/invite",
+                   body: { email: email, role: FlexOps::WorkspaceRole.to_wire(role) })
       end
 
       def remove_member(user_id)
         @http.delete("/api/workspaces/#{@ws_id.call}/members/#{user_id}")
       end
 
+      # Changes a member's role; +role+ is a FlexOps::WorkspaceRole number or name.
       def update_member_role(user_id, role)
-        @http.put("/api/workspaces/#{@ws_id.call}/members/#{user_id}/role", body: { role: role })
+        @http.put("/api/workspaces/#{@ws_id.call}/members/#{user_id}/role",
+                  body: { newRole: FlexOps::WorkspaceRole.to_wire(role) })
       end
     end
   end

@@ -8,31 +8,30 @@
 
 # frozen_string_literal: true
 
+require "erb"
+
 module FlexOps
   module Resources
+    # HS code lookup and landed cost. These routes are not workspace-scoped; each returns a bare
+    # (not enveloped) answer.
     class HsCodes
-      def initialize(http, ws_id_proc)
+      def initialize(http)
         @http = http
-        @ws_id = ws_id_proc
       end
 
       def search(query, destination_country: nil, max_results: 10)
         params = { query: query, destinationCountry: destination_country, maxResults: max_results }.compact
-        @http.get("#{ws_path}/shipping/hs-codes/search", query: params)
+        @http.get("/api/shipping/hs-codes/search", query: params)
       end
 
       def lookup(code)
-        @http.get("#{ws_path}/shipping/hs-codes/#{code}")
+        @http.get("/api/shipping/hs-codes/#{ERB::Util.url_encode(code.to_s)}")
       end
 
+      # request:: { destinationCountry:, items: [{ description:, quantity:, value:, weightOz:,
+      #           hsCode: (optional), originCountry:, skuOrProductId: (optional) }], shippingCost: }
       def estimate_landed_cost(request)
-        @http.post("#{ws_path}/shipping/landed-cost", body: request)
-      end
-
-      private
-
-      def ws_path
-        "/api/workspaces/#{@ws_id.call}"
+        @http.post("/api/shipping/landed-cost", body: request)
       end
     end
   end

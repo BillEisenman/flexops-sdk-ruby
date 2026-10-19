@@ -53,10 +53,14 @@ RSpec.describe FlexOps::Resources::Shipping do
       label = client.shipping.create_label(request, idempotency_key: "purchase-001")
       expect(label["labelId"]).to eq("lbl-001")
       expect(purchase_stub).to have_been_requested.twice
+      # A preview without a caller key still gets its own generated key, never the purchase key.
       preview_request = request.reject { |key, _| key == :confirmationToken }
-      stub_request(:post, url).with(body: preview_request.to_json) { |r| !r.headers.key?("Idempotency-Key") }
+      keys = []
+      stub_request(:post, url).with(body: preview_request.to_json) { |r| keys << r.headers["Idempotency-Key"] }
         .to_return(status: 200, body: '{"status":"Preview"}', headers: {"Content-Type" => "application/json"})
       expect(client.shipping.create_label(**preview_request)["status"]).to eq("Preview")
+      expect(keys.last).to match(/\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/)
+      expect(keys.last).not_to eq("purchase-001")
     end
 
     [[400, "ApprovalRequired"], [409, "ApprovalExpired"], [403, "FeatureDisabled"], [409, "OutcomeUnknown"]].each do |status, code|

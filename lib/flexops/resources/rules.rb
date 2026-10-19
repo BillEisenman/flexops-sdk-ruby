@@ -22,10 +22,13 @@ module FlexOps
         @http.get("#{ws_path}/shipping-rules/#{rule_id}")
       end
 
+      # rule:: { name:, priority:, isEnabled:, warehouseId: (optional),
+      #        conditions: [{ field:, operator:, value:, group: (optional) }], actions: [{ type:, value: }] }
       def create(rule)
         @http.post("#{ws_path}/shipping-rules", body: rule)
       end
 
+      # rule:: the fields to change, named as for #create.
       def update(rule_id, rule)
         @http.put("#{ws_path}/shipping-rules/#{rule_id}", body: rule)
       end
@@ -34,8 +37,21 @@ module FlexOps
         @http.delete("#{ws_path}/shipping-rules/#{rule_id}")
       end
 
-      def reorder(rule_ids)
-        @http.put("#{ws_path}/shipping-rules/reorder", body: rule_ids)
+      # Sets rule priorities. +rules+ is an array of { ruleId:, priority: } hashes, or of rule ids
+      # in the order to apply (the first gets priority 0).
+      def reorder(rules)
+        items = rules.each_with_index.map do |rule, index|
+          rule.is_a?(Hash) ? rule : { ruleId: rule, priority: index }
+        end
+        @http.post("#{ws_path}/shipping-rules/reorder", body: { rules: items })
+      end
+
+      # Evaluates the workspace's rules against a sample shipment without changing anything.
+      #
+      # request:: { weightOz:, declaredValue:, destinationCountry:, destinationState:,
+      #           destinationPostalCode:, orderSource:, itemCount:, shipMethod:, destinationZone:, tags: }
+      def test(request)
+        @http.post("#{ws_path}/shipping-rules/test", body: request)
       end
 
       private

@@ -49,10 +49,15 @@ module FlexOps
         @http.get("/api/shipping/track/#{escape(tracking_number)}")
       end
 
-      # Sends the Gateway AddressValidationRequest ({ address: {...} }). A legacy
-      # street1/state/zip address is mapped to the Gateway field names.
+      # Validates an address with POST /api/addresses/validate and returns the bare result
+      # ("isValid", "validationUnavailable", "suggestedAddress", "isResidential", "warnings",
+      # "validatedBy", "checkedAt").
+      #
+      # The address may use the rate and label field names (addressLine1, stateProvince,
+      # countryCode, ...), the legacy street1/state/zip names, or the Gateway's own
+      # (line1, line2, city, state, postalCode, country). Only those fields and name are sent.
       def validate_address(address)
-        @http.post("/api/shipping/addresses/validate", body: { address: to_shipping_address(address) })
+        @http.post("/api/addresses/validate", body: to_validation_address(address))
       end
 
       # The payload is sent as given. Set hazmatClassification on an item only when you have a declaration.
@@ -98,20 +103,21 @@ module FlexOps
         ERB::Util.url_encode(segment.to_s)
       end
 
-      LEGACY_ADDRESS_FIELDS = {
-        "street1" => "addressLine1",
-        "street2" => "addressLine2",
-        "state" => "stateProvince",
-        "zip" => "postalCode",
-        "country" => "countryCode"
+      # Gateway AddressValidationRequest field for each accepted address field name.
+      VALIDATION_ADDRESS_FIELDS = {
+        "name" => "name",
+        "line1" => "line1", "addressLine1" => "line1", "street1" => "line1",
+        "line2" => "line2", "addressLine2" => "line2", "street2" => "line2",
+        "city" => "city",
+        "state" => "state", "stateProvince" => "state",
+        "postalCode" => "postalCode", "zip" => "postalCode",
+        "country" => "country", "countryCode" => "country"
       }.freeze
 
-      # Maps an address to the Gateway ShippingAddress; canonical input passes through.
-      def to_shipping_address(address)
-        return address unless address.key?(:street1) || address.key?("street1")
-
+      def to_validation_address(address)
         address.each_with_object({}) do |(key, value), mapped|
-          mapped[LEGACY_ADDRESS_FIELDS.fetch(key.to_s, key.to_s)] = value unless value.nil?
+          field = VALIDATION_ADDRESS_FIELDS[key.to_s]
+          mapped[field] = value unless field.nil? || value.nil?
         end
       end
     end
