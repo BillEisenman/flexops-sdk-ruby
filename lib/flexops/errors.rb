@@ -8,13 +8,16 @@
 
 module FlexOps
   class Error < StandardError
-    attr_reader :status, :code, :errors
+    # data is the envelope's "data" on an error reply, when the Gateway sends one. A
+    # multi-package 422 AllPackagesFailed or 409 OutcomeUnknown carries the per-box results there.
+    attr_reader :status, :code, :errors, :data
 
-    def initialize(message, status: 0, code: nil, errors: nil)
+    def initialize(message, status: 0, code: nil, errors: nil, data: nil)
       super(message)
       @status = status
       @code = code
       @errors = errors
+      @data = data
     end
   end
 

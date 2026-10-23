@@ -117,7 +117,8 @@ module FlexOps
           error_body["message"] || "HTTP #{status}: #{response.message}",
           status: status,
           code: error_body["errorCode"] || error_body["code"] || (status == 403 ? "FORBIDDEN" : nil),
-          errors: error_body["errors"]
+          errors: error_body["errors"],
+          data: error_body["data"]
         )
 
         raise error unless retryable?(method, status, error.code)

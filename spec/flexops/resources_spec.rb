@@ -113,6 +113,58 @@ RSpec.describe "Gateway resource contracts" do
     it "no longer offers the portal actions" do
       %i[approve reject cancel process_refund].each { |name| expect(client.returns).not_to respond_to(name) }
     end
+
+    it "reads RMAs on the RMA routes and a received return by numeric id" do
+      by_number = stub_request(:get, "#{ws_path}/returns/rma/RMA-1001").to_return(status: 200, body: "{}", headers: json_headers)
+      paged = stub_request(:get, "#{ws_path}/returns/rma?page=2&pageSize=50").to_return(status: 200, body: "{}", headers: json_headers)
+      all = stub_request(:get, "#{ws_path}/returns/rma").to_return(status: 200, body: "{}", headers: json_headers)
+      received = stub_request(:get, "#{ws_path}/returns/42").to_return(status: 200, body: "{}", headers: json_headers)
+
+      client.returns.get_rma("RMA-1001")
+      client.returns.list_rmas(page: 2, page_size: 50)
+      client.returns.list_rmas
+      client.returns.get(42)
+
+      [by_number, paged, all, received].each { |stub| expect(stub).to have_been_requested.once }
+    end
+  end
+
+  describe "multi-package labels" do
+    let(:request) do
+      { orderId: 15563627, carrierCode: "USPS", serviceCode: "PRIORITY",
+        hazmatClassification: FlexOps::HazmatClassification::NONE,
+        packages: [{ weightInOunces: 16, lengthInInches: 10, widthInInches: 8, heightInInches: 4, packageReference: "Box 1 of 2" },
+                   { weightInOunces: 8, lengthInInches: 6, widthInInches: 6, heightInInches: 6 }] }
+    end
+
+    it "posts the order and boxes to the multi-package route with the caller's key" do
+      bodies = []
+      stub = stub_request(:post, "#{BASE_URL}/api/shipping/multi-package")
+        .with(headers: { "Idempotency-Key" => "order-15563627" }) { |req| bodies << JSON.parse(req.body) }
+        .to_return(status: 200, body: { success: true, data: { successfulPackages: 2, labels: [] } }.to_json, headers: json_headers)
+
+      result = client.shipping.create_multi_package(request, idempotency_key: "order-15563627")
+
+      # The body checks come first: WebMock runs the with-block again when it verifies the stub.
+      expect(bodies).to eq([JSON.parse(request.to_json)])
+      expect(bodies.first["hazmatClassification"]).to eq(0)
+      expect(stub).to have_been_requested.once
+      expect(result["data"]["successfulPackages"]).to eq(2)
+    end
+
+    it "keeps the per-box results on an unknown outcome and does not retry it" do
+      data = { "orderId" => 1, "failedPackages" => 1, "labels" => [{ "packageIndex" => 0, "success" => false, "errorCode" => "OutcomeUnknown" }] }
+      stub = stub_request(:post, "#{BASE_URL}/api/shipping/multi-package")
+        .to_return(status: 409, body: { success: false, message: "No label was confirmed", errorCode: "OutcomeUnknown", data: data }.to_json,
+                   headers: json_headers)
+
+      expect { client.shipping.create_multi_package(request) }.to raise_error(FlexOps::Error) { |error|
+        expect(error.status).to eq(409)
+        expect(error.code).to eq("OutcomeUnknown")
+        expect(error.data).to eq(data)
+      }
+      expect(stub).to have_been_requested.once
+    end
   end
 
   describe "rules" do
