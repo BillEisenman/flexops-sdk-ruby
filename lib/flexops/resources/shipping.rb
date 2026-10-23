@@ -92,10 +92,16 @@ module FlexOps
       end
 
       # The payload is sent as given. Set hazmatClassification on an item only when you have a declaration.
+      # Batch labels cannot carry HAZMAT yet: send HazmatClassification::NONE or leave hazmatClassification
+      # out (any other class is refused with 400 HazmatNotSupported). Buy HAZMAT labels one at a time
+      # with create_label.
       def create_batch(request)
         @http.post("#{ws_path}/labels/batch", body: request)
       end
 
+      # Previews a batch without buying labels. The payload is sent as given; as with create_batch, an
+      # item's hazmatClassification accepts only HazmatClassification::NONE or nothing (any other class
+      # is refused with 400 HazmatNotSupported).
       def preview_batch(request)
         @http.post("#{ws_path}/labels/batch/preview", body: request)
       end

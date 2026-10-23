@@ -57,7 +57,9 @@ module FlexOps
       # missing fields.
       #
       # Only what you set is sent; the Gateway uses "usps" when carrier_code is left out.
-      # hazmat_classification (a HazmatClassification) declares what the return holds.
+      # hazmat_classification (a HazmatClassification) declares what the return holds. Return labels
+      # cannot carry HAZMAT yet: send HazmatClassification::NONE or leave it out (any other class is
+      # refused with 400 HazmatNotSupported).
       def generate_label(rma_number, weight_oz: nil, length_in: nil, width_in: nil, height_in: nil,
                          carrier_code: nil, service_type: nil, payment_confirmed: nil, hazmat_classification: nil,
                          rate_indicator: nil)
