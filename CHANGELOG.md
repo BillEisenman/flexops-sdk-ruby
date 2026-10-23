@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-22
+
+2.1.0 adds multi-package labels and RMA reads, and corrects the returns `get` docs. Existing code keeps working.
+
 ### Added
 - `shipping.create_multi_package(request, idempotency_key: nil)` buys labels for one order shipped in 1 to 99 boxes (`POST /api/shipping/multi-package`). `hazmatClassification` accepts only `HazmatClassification::NONE` or nothing; the Gateway refuses any other class with 400 `HazmatNotSupported`.
 - `returns.get_rma(rma_number)` and `returns.list_rmas(page:, page_size:)` read return authorizations (`GET .../returns/rma/{rmaNumber}` and `GET .../returns/rma`). There was no way to read an RMA back after creating it.
