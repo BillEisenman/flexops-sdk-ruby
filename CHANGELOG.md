@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-22
+
+2.2.0 requires a maximum total price on multi-package labels: the Gateway refuses to buy a box that would take the shipment above it. It changes only the multi-package call released earlier today.
+
 ### Changed
 - The `shipping.create_multi_package` request requires `maximumPostageAmount`: the most the whole shipment may
   cost, in USD (positive, at most two decimals). The Gateway refuses to buy a box that would take the total above
