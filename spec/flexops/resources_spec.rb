@@ -133,6 +133,7 @@ RSpec.describe "Gateway resource contracts" do
     let(:request) do
       { orderId: 15563627, carrierCode: "USPS", serviceCode: "PRIORITY",
         hazmatClassification: FlexOps::HazmatClassification::NONE,
+        maximumPostageAmount: 25.0,
         packages: [{ weightInOunces: 16, lengthInInches: 10, widthInInches: 8, heightInInches: 4, packageReference: "Box 1 of 2" },
                    { weightInOunces: 8, lengthInInches: 6, widthInInches: 6, heightInInches: 6 }] }
     end
@@ -148,8 +149,31 @@ RSpec.describe "Gateway resource contracts" do
       # The body checks come first: WebMock runs the with-block again when it verifies the stub.
       expect(bodies).to eq([JSON.parse(request.to_json)])
       expect(bodies.first["hazmatClassification"]).to eq(0)
+      expect(bodies.first["maximumPostageAmount"]).to eq(25.0)
       expect(stub).to have_been_requested.once
       expect(result["data"]["successfulPackages"]).to eq(2)
+    end
+
+    it "raises with the Gateway code when the ceiling is refused and does not retry it" do
+      stub = stub_request(:post, "#{BASE_URL}/api/shipping/multi-package")
+        .to_return(status: 400, body: { success: false, errorCode: "ApprovalRequired",
+                                        message: "Supply maximumPostageAmount in USD, positive and with at most two decimal places." }.to_json,
+                   headers: json_headers)
+
+      expect { client.shipping.create_multi_package(request.merge(maximumPostageAmount: 0)) }.to raise_error(FlexOps::Error) { |error|
+        expect(error.status).to eq(400)
+        expect(error.code).to eq("ApprovalRequired")
+      }
+      expect(stub).to have_been_requested.once
+    end
+
+    # The request is a hash, so the required ceiling is part of the documented contract.
+    it "documents the required ceiling on the request" do
+      source = File.read(File.expand_path("../../lib/flexops/resources/shipping.rb", __dir__))
+
+      expect(source).to include("maximumPostageAmount: 25.00")
+      expect(source).to include("maximumPostageAmount is required")
+      expect(source).to include("refuses to buy a box that would take the total above it")
     end
 
     it "keeps the per-box results on an unknown outcome and does not retry it" do

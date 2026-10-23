@@ -213,13 +213,17 @@ client.email_templates.preview(subject_template: "Hi {{recipient_name}}", html_b
 
 One order shipped in several boxes with the same carrier and service; each box gets its own label and
 a box that fails does not stop the others. Multi-package labels cannot carry HAZMAT: send
-`FlexOps::HazmatClassification::NONE` or leave `hazmatClassification` out.
+`FlexOps::HazmatClassification::NONE` or leave `hazmatClassification` out. `maximumPostageAmount` is required: the
+most the whole shipment may cost in USD (positive, at most two decimals). The Gateway refuses to buy a box that would
+take the total above it (`PriceCeilingExceeded`; once the amount is used up the remaining boxes report
+`PriceCeilingReached`), and a request without a valid ceiling is 400 `ApprovalRequired`.
 
 ```ruby
 begin
   shipment = client.shipping.create_multi_package(
     { orderId: 12345, carrierCode: "USPS", serviceCode: "PRIORITY",
       hazmatClassification: FlexOps::HazmatClassification::NONE,
+      maximumPostageAmount: 25.00, # required: the most the whole shipment may cost, in USD
       packages: [{ weightInOunces: 16, lengthInInches: 10, widthInInches: 8, heightInInches: 4, packageReference: "Box 1 of 2" },
                  { weightInOunces: 8, lengthInInches: 6, widthInInches: 6, heightInInches: 6, packageReference: "Box 2 of 2" }] },
     idempotency_key: "order-12345-boxes" # optional; reuse it when you retry
