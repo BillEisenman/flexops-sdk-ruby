@@ -60,6 +60,31 @@ module FlexOps
         @http.post("/api/addresses/validate", body: to_validation_address(address))
       end
 
+      # Buys labels for one order shipped in 1 to 99 boxes with the same carrier and service
+      # (POST /api/shipping/multi-package, the Gateway MultiPackageShipmentRequest):
+      #
+      #   { orderId: 12345, carrierCode: "USPS", serviceCode: (optional), labelFormat: (optional),
+      #     shipDate: (optional), hazmatClassification: (optional),
+      #     packages: [{ weightInOunces:, lengthInInches:, widthInInches:, heightInInches:,
+      #                  deliveryConfirmationRequired: (optional), signatureConfirmationRequired: (optional),
+      #                  insuranceCoverageRequested: (optional), insuredValue: (optional),
+      #                  packageReference: (optional) }] }
+      #
+      # Weight is in ounces and every dimension in inches; all four are required. Multi-package
+      # labels cannot carry HAZMAT yet: send HazmatClassification::NONE or leave hazmatClassification
+      # out (any other class is refused with 400 HazmatNotSupported).
+      #
+      # Returns the envelope when at least one label was bought (check data["failedPackages"] and
+      # each box in data["labels"]). When none was, the Gateway answers 422 AllPackagesFailed, or 409
+      # OutcomeUnknown when a box's carrier outcome is unknown and a label may exist: both raise
+      # FlexOps::Error whose data holds the per-box results. After OutcomeUnknown, check the order
+      # before buying again. Pass your own idempotency_key (and reuse it) to make a retry you run
+      # yourself safe.
+      def create_multi_package(request, idempotency_key: nil)
+        @http.post("/api/shipping/multi-package", body: request,
+                   headers: idempotency_key.nil? ? {} : { "Idempotency-Key" => idempotency_key })
+      end
+
       # The payload is sent as given. Set hazmatClassification on an item only when you have a declaration.
       def create_batch(request)
         @http.post("#{ws_path}/labels/batch", body: request)

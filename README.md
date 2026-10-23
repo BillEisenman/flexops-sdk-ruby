@@ -209,6 +209,30 @@ client.email_templates.upsert(eventType: 3, subjectTemplate: "Delivered: {{track
 client.email_templates.preview(subject_template: "Hi {{recipient_name}}", html_body_template: "<p>{{status}}</p>")
 ```
 
+## Multi-package labels
+
+One order shipped in several boxes with the same carrier and service; each box gets its own label and
+a box that fails does not stop the others. Multi-package labels cannot carry HAZMAT: send
+`FlexOps::HazmatClassification::NONE` or leave `hazmatClassification` out.
+
+```ruby
+begin
+  shipment = client.shipping.create_multi_package(
+    { orderId: 12345, carrierCode: "USPS", serviceCode: "PRIORITY",
+      hazmatClassification: FlexOps::HazmatClassification::NONE,
+      packages: [{ weightInOunces: 16, lengthInInches: 10, widthInInches: 8, heightInInches: 4, packageReference: "Box 1 of 2" },
+                 { weightInOunces: 8, lengthInInches: 6, widthInInches: 6, heightInInches: 6, packageReference: "Box 2 of 2" }] },
+    idempotency_key: "order-12345-boxes" # optional; reuse it when you retry
+  )
+rescue FlexOps::Error => e
+  # No label was bought: 422 AllPackagesFailed, or 409 OutcomeUnknown when a label may exist
+  # (check the order before buying again). e.data holds the per-box results.
+end
+```
+
+`client.returns.get` reads a received return by its numeric return id; read an RMA with
+`client.returns.get_rma("RMA-1001")` or page through them with `client.returns.list_rmas`.
+
 ## Wallet balance
 
 ```ruby
@@ -330,12 +354,12 @@ Use a `test_...` key instead of `live_...` to hit the sandbox environment; mock 
 |----------|-------------|
 | `client.auth` | Login, token refresh, logout |
 | `client.workspaces` | List and read workspaces; list, invite and remove members, change roles |
-| `client.shipping` | Rate shopping, labels, tracking, address validation, batch, cancel |
+| `client.shipping` | Rate shopping, labels, multi-package labels, tracking, address validation, batch, cancel |
 | `client.carriers` | USPS, UPS, FedEx and DHL calls through the legacy proxy; writes are deprecated and need a user token |
 | `client.webhooks` | Subscription create/update/delete, secret rotation, test events, delivery logs, signature verification |
 | `client.wallet` | Workspace balance |
 | `client.insurance` | Providers, quotes, policies, void, claims |
-| `client.returns` | List and read returns; create RMAs, return labels, receive |
+| `client.returns` | List and read received returns; create, read and list RMAs; return labels; receive |
 | `client.analytics` | Shipments, orders, carrier performance (legacy proxy reads) |
 | `client.orders` | Order reads (legacy proxy) |
 | `client.inventory` | Inventory reads (legacy proxy) |

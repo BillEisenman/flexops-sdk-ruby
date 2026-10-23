@@ -6,6 +6,8 @@
 # Copyright (c) 2021-2026 by FlexOps, LLC. All rights reserved.
 # ***********************************************************************
 
+require "erb"
+
 module FlexOps
   module Resources
     class Returns
@@ -14,13 +16,28 @@ module FlexOps
         @ws_id = ws_id_proc
       end
 
+      # Lists received returns (start_date and end_date are ISO 8601; the Gateway defaults to the
+      # last 30 days). To list return authorizations, use list_rmas.
       def list(page: nil, page_size: nil, start_date: nil, end_date: nil)
         query = { page: page, pageSize: page_size, startDate: start_date, endDate: end_date }.compact
         @http.get("#{ws_path}/returns", query: query.empty? ? nil : query)
       end
 
+      # Reads a received return by its numeric return id ("returnId" on a listed return or an RMA).
+      # An RMA number such as "RMA-1001" is not a return id and matches no Gateway route; use get_rma.
       def get(return_id)
         @http.get("#{ws_path}/returns/#{return_id}")
+      end
+
+      # Lists return authorizations (RMAs), one page at a time.
+      def list_rmas(page: nil, page_size: nil)
+        query = { page: page, pageSize: page_size }.compact
+        @http.get("#{ws_path}/returns/rma", query: query.empty? ? nil : query)
+      end
+
+      # Reads a return authorization by its RMA number, for example "RMA-1001".
+      def get_rma(rma_number)
+        @http.get("#{ws_path}/returns/rma/#{ERB::Util.url_encode(rma_number.to_s)}")
       end
 
       # Creates an RMA and returns the enveloped RMA (201).
