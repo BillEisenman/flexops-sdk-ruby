@@ -64,11 +64,17 @@ module FlexOps
       # (POST /api/shipping/multi-package, the Gateway MultiPackageShipmentRequest):
       #
       #   { orderId: 12345, carrierCode: "USPS", serviceCode: (optional), labelFormat: (optional),
-      #     shipDate: (optional), hazmatClassification: (optional),
+      #     shipDate: (optional), hazmatClassification: (optional), maximumPostageAmount: 25.00,
       #     packages: [{ weightInOunces:, lengthInInches:, widthInInches:, heightInInches:,
       #                  deliveryConfirmationRequired: (optional), signatureConfirmationRequired: (optional),
       #                  insuranceCoverageRequested: (optional), insuredValue: (optional),
       #                  packageReference: (optional) }] }
+      #
+      # maximumPostageAmount is required: the most the whole shipment may cost, in USD (positive, at most
+      # two decimals). The Gateway refuses to buy a box that would take the total above it, so you never
+      # pay more: a box priced above what is left reports PriceCeilingExceeded, and once the amount is
+      # used up the remaining boxes report PriceCeilingReached and are not bought. Boxes already bought
+      # stay bought. A missing or invalid value is 400 ApprovalRequired.
       #
       # Weight is in ounces and every dimension in inches; all four are required. Multi-package
       # labels cannot carry HAZMAT yet: send HazmatClassification::NONE or leave hazmatClassification
