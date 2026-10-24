@@ -243,6 +243,30 @@ RSpec.describe "Gateway resource contracts" do
     end
   end
 
+  describe "scan forms" do
+    it "creates a SCAN form with the Gateway field names and the caller's requestId" do
+      request = { trackingNumbers: ["9400111899223456789014"], manifestDate: "2026-09-08", requestId: "req-1",
+                  originPostalCode: "10001", warehouseId: 7 }
+      bodies = capture(:post, "#{ws_path}/scan-forms")
+
+      client.scan_forms.create(request)
+
+      expect(bodies).to eq([JSON.parse(request.to_json)])
+    end
+
+    it "generates one requestId per call when none is given" do
+      bodies = capture(:post, "#{ws_path}/scan-forms")
+
+      client.scan_forms.create(trackingNumbers: ["9400"], manifestDate: "2026-09-08")
+      client.scan_forms.create(trackingNumbers: ["9400"], manifestDate: "2026-09-08", requestId: nil)
+
+      ids = bodies.map { |body| body["requestId"] }
+      expect(ids).to all(match(/\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/))
+      expect(ids.uniq.length).to eq(2)
+      expect(bodies[0].keys).to contain_exactly("trackingNumbers", "manifestDate", "requestId")
+    end
+  end
+
   describe "workspace members" do
     it "sends roles as WorkspaceRole numbers" do
       invites = capture(:post, "#{ws_path}/members/invite")

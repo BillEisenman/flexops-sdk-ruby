@@ -16,6 +16,8 @@ module FlexOps
         @ws_id = ws_id_proc
       end
 
+      # Schedules a carrier pickup. API keys need shipping:write; the public demo keys are refused.
+      #
       # request:: { carrierCode:, pickupDate:, street:, city:, state:, postalCode:,
       #           country: (optional, "US"), packageCount:, totalWeightOz: (optional),
       #           specialInstructions:, readyTime:, closeTime:, contactName:, contactPhone: (all optional) }
@@ -33,6 +35,7 @@ module FlexOps
         @http.get("#{ws_path}/pickups/#{pickup_id}", query: carrier_code.nil? ? nil : { carrierCode: carrier_code })
       end
 
+      # Cancels a scheduled pickup. API keys need shipping:write; the public demo keys are refused.
       # The Gateway uses "usps" when carrier_code is left out.
       def cancel(pickup_id, carrier_code: nil)
         query = carrier_code.nil? ? "" : "?#{URI.encode_www_form(carrierCode: carrier_code)}"
