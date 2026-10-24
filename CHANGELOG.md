@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `FlexOps::ScanFormState` (`CREATED`, `OUTCOME_UNKNOWN`) with `created?(form)` and `pdf_bytes(form)`, which decodes a
+  form's base64 `scanFormImage` (nil for sandbox forms and unresolved operations).
+
 ### Changed
+- Docs: `client.scan_forms` documents the form the Gateway returns in `data` (its ScanFormDto): `scanFormId`,
+  `state`, `originPostalCode`, `trackingNumbers`, `createdAtUtc`, `scanFormImage`, `manifestNumber`, `manifestDate`,
+  `packageCount`, `statusMessage`, `success`, `errorMessage` and `isSandbox`, and that `create` raises
+  `FlexOps::Error` with status 409 when the `requestId` was used with different inputs, when the packages already
+  belong to a manifest, or when an operation needs review. These are not retried. Replies are unchanged Hashes.
 - Docs: `scan_forms.create` documents the Gateway's SCAN form request: `trackingNumbers`, `manifestDate`
   (`YYYY-MM-DD`), `requestId`, `originPostalCode` and `warehouseId`. Live creation needs `manifestDate`: without it the
   Gateway answers 400 `Choose the label mailing date.`
