@@ -8,6 +8,10 @@
 
 module FlexOps
   module Resources
+    # Read-only order lookups through the legacy /api/ApiProxy passthrough
+    # (/api/ApiProxy/api/v1/Order/...). With an API key, every method requires the orders:read
+    # permission; a key without it gets 403 API_KEY_SCOPE_REQUIRED. Keys created with the default
+    # permissions include orders:read. The proxy refuses writes from API keys.
     class Orders
       BASE = "/api/ApiProxy/api/v1/Order"
 
