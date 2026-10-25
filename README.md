@@ -248,7 +248,14 @@ transaction history are managed in the FlexOps portal.
 
 ## Webhook subscriptions
 
+Managing webhooks needs a signed-in user's access token. The Gateway refuses API keys on every webhook route, reads included (`list` and `list_delivery_logs` as well as `create`, `update`, `delete`, `rotate_secret` and `test`), with 403 `SIGNED_IN_USER_REQUIRED`, whatever the key's scopes; the SDK raises `FlexOps::Error` with that `code`. Reads are refused too because webhook delivery logs carry each delivery's payload (order and customer data). A client with an API key sends the key even when an access token is also set, so use a client created without `api_key`. Verifying deliveries (below) makes no request and needs no credentials.
+
 ```ruby
+# Sign in as a user (or pass access_token:); an API key gets 403 SIGNED_IN_USER_REQUIRED here.
+client = FlexOps::Client.new(workspace_id: "your-workspace-id")
+session = client.auth.login(email: "user@example.com", password: "password")
+client.set_access_token(session["data"]["token"])
+
 # Leave events out to receive every event.
 webhook = client.webhooks.create(
   url: "https://your-app.com/webhooks/flexops",
