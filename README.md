@@ -115,8 +115,11 @@ client = FlexOps::Client.new(api_key: "test_...", workspace_id: "your-workspace-
 `client.carriers.usps`, `.ups`, `.fedex` and `.dhl` call carrier routes through the legacy
 `/api/ApiProxy` passthrough, which the Gateway retires on 2027-06-30.
 
-- Lookups (GET), such as address checks, tracking and DHL rates, work with an API key or a user
-  token.
+- Lookups (GET), such as address checks, tracking and DHL rates, work with a user token, or an API
+  key that has the permission for the data: `shipping:read` for address, ZIP, city, location,
+  service point and reference lookups; `tracking:read` for tracking and proof of delivery;
+  `rates:read` for delivery standards, rates and products. Without it the Gateway returns 403
+  `API_KEY_SCOPE_REQUIRED`.
 - The writes (POST, PUT and DELETE, such as `usps.get_domestic_rates`, `fedex.cancel_shipment`
   or `ups.create_pickup`) are deprecated. They need a user token from `auth.login`: API keys get
   403 `API_KEY_SCOPE_REQUIRED`, and no API-key scope will be added for them. They stop working when
@@ -364,9 +367,9 @@ Use a `test_...` key instead of `live_...` to hit the sandbox environment; mock 
 | `client.wallet` | Workspace balance |
 | `client.insurance` | Providers, quotes, policies, void, claims |
 | `client.returns` | List and read received returns; create, read and list RMAs; return labels; receive |
-| `client.analytics` | Shipments, orders, carrier performance (legacy proxy reads) |
-| `client.orders` | Order reads (legacy proxy) |
-| `client.inventory` | Inventory reads (legacy proxy) |
+| `client.analytics` | Shipments, orders, carrier performance (legacy proxy reads; API keys need each method's read permission) |
+| `client.orders` | Order reads (legacy proxy; API keys need `orders:read`) |
+| `client.inventory` | Inventory reads (legacy proxy; API keys need `inventory:read`) |
 | `client.pickups` | Schedule, list, read and cancel carrier pickups |
 | `client.scan_forms` | USPS scan forms |
 | `client.rules` | Shipping rules: create, read, update, delete, reorder, test |
@@ -375,6 +378,12 @@ Use a `test_...` key instead of `live_...` to hit the sandbox environment; mock 
 | `client.recurring_shipments` | Recurring shipment schedules: create, update, pause, resume, trigger, delete |
 | `client.report_schedules` | Scheduled report emails: create, update, toggle, delete |
 | `client.email_templates` | Tracking email templates: upsert, preview, delete |
+
+`client.analytics`, `client.orders` and `client.inventory` read through the legacy proxy. With an
+API key they need the permission for the data they read: `orders:read` for orders,
+`inventory:read` for inventory, and for analytics the permission named on each method
+(`shipping:read`, `inventory:read`, `orders:read` or `returns:read`). A key without it gets 403
+`API_KEY_SCOPE_REQUIRED`. Keys created with the default permissions have all of these.
 
 API keys, workspace settings and account management are managed in the FlexOps portals.
 

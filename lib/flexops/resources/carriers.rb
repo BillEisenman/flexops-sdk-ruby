@@ -9,7 +9,12 @@
 module FlexOps
   module Resources
     # Carrier-specific calls through the legacy /api/ApiProxy passthrough (sunset 2027-06-30).
-    # Lookups (GET) work with an API key or a user token. The writes (POST/PUT/DELETE) are
+    # Lookups (GET) work with a user token, or an API key that has the permission for the data
+    # they read: address, ZIP, city, location, service point and reference lookups require
+    # shipping:read; tracking and proof of delivery require tracking:read; delivery standards,
+    # rates and products require rates:read. A key without the permission gets 403
+    # API_KEY_SCOPE_REQUIRED; keys created with the default permissions have all three.
+    # The writes (POST/PUT/DELETE) are
     # deprecated and need a user token (auth.login): the Gateway refuses API-key writes on the
     # proxy with 403 API_KEY_SCOPE_REQUIRED. Label generation through the proxy is closed (410 Gone);
     # buy, cancel and schedule through client.shipping, client.pickups and client.scan_forms.
@@ -25,6 +30,9 @@ module FlexOps
       end
     end
 
+    # USPS through the legacy proxy. With an API key, the address, ZIP, city and location lookups
+    # require shipping:read, tracking requires tracking:read and delivery standards require
+    # rates:read.
     class UspsCarrier
       PROXY = "/api/ApiProxy"
 
@@ -72,6 +80,7 @@ module FlexOps
       def find_post_offices(params) = @http.get("#{PROXY}/api/v3/LocationSearch/getUspsFindValidPostOfficeLocations", query: params)
     end
 
+    # UPS through the legacy proxy. With an API key, track requires tracking:read.
     class UpsCarrier
       PROXY = "/api/ApiProxy"
 
@@ -178,6 +187,9 @@ module FlexOps
       def confirm_open_shipment(body) = @http.post("#{PROXY}/api/v3/OpenShip/postFedExConfirmOpenShipment", body: body)
     end
 
+    # DHL through the legacy proxy. With an API key, address validation, service points and
+    # reference data require shipping:read; tracking and proof of delivery require
+    # tracking:read; rates and products require rates:read.
     class DhlCarrier
       PROXY = "/api/ApiProxy"
 
