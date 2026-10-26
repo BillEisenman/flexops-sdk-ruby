@@ -24,21 +24,25 @@ module FlexOps
 
       # rule:: { name:, priority:, isEnabled:, warehouseId: (optional),
       #        conditions: [{ field:, operator:, value:, group: (optional) }], actions: [{ type:, value: }] }
+      # Signed-in users only: API keys get 403 SIGNED_IN_USER_REQUIRED, whatever their scopes.
       def create(rule)
         @http.post("#{ws_path}/shipping-rules", body: rule)
       end
 
       # rule:: the fields to change, named as for #create.
+      # Signed-in users only: API keys get 403 SIGNED_IN_USER_REQUIRED, whatever their scopes.
       def update(rule_id, rule)
         @http.put("#{ws_path}/shipping-rules/#{rule_id}", body: rule)
       end
 
+      # Signed-in users only: API keys get 403 SIGNED_IN_USER_REQUIRED, whatever their scopes.
       def delete(rule_id)
         @http.delete("#{ws_path}/shipping-rules/#{rule_id}")
       end
 
       # Sets rule priorities. +rules+ is an array of { ruleId:, priority: } hashes, or of rule ids
       # in the order to apply (the first gets priority 0).
+      # Signed-in users only: API keys get 403 SIGNED_IN_USER_REQUIRED, whatever their scopes.
       def reorder(rules)
         items = rules.each_with_index.map do |rule, index|
           rule.is_a?(Hash) ? rule : { ruleId: rule, priority: index }
@@ -47,6 +51,7 @@ module FlexOps
       end
 
       # Evaluates the workspace's rules against a sample shipment without changing anything.
+      # API keys need shipping:read; the public demo keys are refused.
       #
       # request:: { weightOz:, declaredValue:, destinationCountry:, destinationState:,
       #           destinationPostalCode:, orderSource:, itemCount:, shipMethod:, destinationZone:, tags: }
