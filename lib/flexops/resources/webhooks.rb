@@ -10,12 +10,29 @@ require "openssl"
 
 module FlexOps
   module Resources
+    # Webhook subscription management and signature verification.
+    #
+    # Every method that calls the Gateway needs a signed-in user's access token
+    # (Client.new(access_token: ...) or Client#set_access_token with the token from
+    # auth.login). The Gateway refuses API keys on every webhook route, reads included,
+    # with 403 SIGNED_IN_USER_REQUIRED, whatever the key's scopes; the SDK raises
+    # FlexOps::Error with that +code+. Reads are refused too because webhook delivery
+    # logs carry each delivery's payload (order and customer data). A client with an API
+    # key sends the key even when an access token is also set, so call these methods
+    # from a client created without +api_key+. verify_signature and verify_signature!
+    # make no request and need no credentials.
     class Webhooks
       def initialize(http, ws_id_proc)
         @http = http
         @ws_id = ws_id_proc
       end
 
+      # Lists the workspace's webhook subscriptions.
+      #
+      # Needs a signed-in user's access token. With an API key the Gateway answers 403
+      # and this raises FlexOps::Error with code "SIGNED_IN_USER_REQUIRED". Reads are
+      # signed-in only, like the writes, because webhook delivery logs carry each
+      # delivery's payload (order and customer data).
       def list
         @http.get("#{ws_path}/webhooks")
       end
@@ -35,6 +52,9 @@ module FlexOps
       # "secret", ...), not a success/data envelope: the Gateway answers 201 with the
       # bare subscription. An enveloped answer is unwrapped, so "secret" (the whsec_...
       # signing secret, returned only here) is always at the top level.
+      #
+      # Needs a signed-in user's access token. With an API key the Gateway answers 403
+      # and this raises FlexOps::Error with code "SIGNED_IN_USER_REQUIRED".
       def create(request)
         unwrap_subscription(@http.post("#{ws_path}/webhooks", body: to_wire_request(request)))
       end
@@ -42,23 +62,43 @@ module FlexOps
       # Updates a webhook subscription. +data+ takes +url+, +description+, +status+
       # ("Active", "Paused" or "Disabled") and +events+, which replaces the subscribed
       # events and is sent as +eventTypes+. Raises ArgumentError as #create does.
+      #
+      # Needs a signed-in user's access token. With an API key the Gateway answers 403
+      # and this raises FlexOps::Error with code "SIGNED_IN_USER_REQUIRED".
       def update(webhook_id, data)
         @http.put("#{ws_path}/webhooks/#{webhook_id}", body: to_wire_request(data))
       end
 
+      # Deletes a webhook subscription.
+      #
+      # Needs a signed-in user's access token. With an API key the Gateway answers 403
+      # and this raises FlexOps::Error with code "SIGNED_IN_USER_REQUIRED".
       def delete(webhook_id)
         @http.delete("#{ws_path}/webhooks/#{webhook_id}")
       end
 
+      # Rotates the subscription's signing secret.
+      #
+      # Needs a signed-in user's access token. With an API key the Gateway answers 403
+      # and this raises FlexOps::Error with code "SIGNED_IN_USER_REQUIRED".
       def rotate_secret(webhook_id)
         @http.post("#{ws_path}/webhooks/#{webhook_id}/rotate-secret")
       end
 
+      # Lists the subscription's delivery logs.
+      #
+      # Needs a signed-in user's access token. With an API key the Gateway answers 403
+      # and this raises FlexOps::Error with code "SIGNED_IN_USER_REQUIRED". Reads are
+      # signed-in only, like the writes, because webhook delivery logs carry each
+      # delivery's payload (order and customer data).
       def list_delivery_logs(webhook_id)
         @http.get("#{ws_path}/webhooks/#{webhook_id}/deliveries")
       end
 
       # Sends a test event (X-FlexOps-Event "test") to the subscription's URL.
+      #
+      # Needs a signed-in user's access token. With an API key the Gateway answers 403
+      # and this raises FlexOps::Error with code "SIGNED_IN_USER_REQUIRED".
       def test(webhook_id)
         @http.post("#{ws_path}/webhooks/#{webhook_id}/test")
       end
