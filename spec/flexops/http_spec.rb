@@ -55,6 +55,19 @@ RSpec.describe FlexOps::HttpClient do
       expect(offset_keys).to eq(%w[order-42-offset order-42-offset])
     end
 
+    it "resends the same SCAN form requestId on every attempt" do
+      ids = []
+      stub_request(:post, "#{BASE_URL}/api/workspaces/ws-test-123/scan-forms")
+        .with { |req| ids << JSON.parse(req.body)["requestId"] }
+        .to_return(json(503, message: "Unavailable"), json(200, success: true))
+
+      client.scan_forms.create(trackingNumbers: ["9400"], manifestDate: "2026-09-08")
+
+      expect(ids.length).to eq(2)
+      expect(ids[0]).to match(uuid)
+      expect(ids[1]).to eq(ids[0])
+    end
+
     it "generates a new key for each separate write" do
       keys = record_keys(:post, hooks_url, json(201, id: "wh-1"))
 

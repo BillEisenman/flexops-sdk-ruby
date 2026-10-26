@@ -29,16 +29,19 @@ module FlexOps
 
       # Invites a member. +role+ is a FlexOps::WorkspaceRole number or name (for example
       # :member); it is required because the Gateway reads a missing role as Owner.
+      # Signed-in users only: API keys get 403 SIGNED_IN_USER_REQUIRED, whatever their scopes.
       def invite_member(email:, role:)
         @http.post("/api/workspaces/#{@ws_id.call}/members/invite",
                    body: { email: email, role: FlexOps::WorkspaceRole.to_wire(role) })
       end
 
+      # Signed-in users only: API keys get 403 SIGNED_IN_USER_REQUIRED, whatever their scopes.
       def remove_member(user_id)
         @http.delete("/api/workspaces/#{@ws_id.call}/members/#{user_id}")
       end
 
       # Changes a member's role; +role+ is a FlexOps::WorkspaceRole number or name.
+      # Signed-in users only: API keys get 403 SIGNED_IN_USER_REQUIRED, whatever their scopes.
       def update_member_role(user_id, role)
         @http.put("/api/workspaces/#{@ws_id.call}/members/#{user_id}/role",
                   body: { newRole: FlexOps::WorkspaceRole.to_wire(role) })
