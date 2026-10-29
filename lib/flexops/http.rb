@@ -61,8 +61,8 @@ module FlexOps
       request(:patch, path, body: body, headers: headers)
     end
 
-    def delete(path, headers: {})
-      request(:delete, path, headers: headers)
+    def delete(path, query: nil, headers: {})
+      request(:delete, path, query: query, headers: headers)
     end
 
     private

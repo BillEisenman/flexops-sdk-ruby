@@ -60,10 +60,12 @@ module FlexOps
       def get_international_prices(body) = @http.post("#{PROXY}/api/v3/RateCalculator/postUspsSearchEligibleInternationalPrices", body: body)
       # @deprecated Legacy carrier proxy (sunset 2027-06-30). Needs a user token: API keys get 403
       #   API_KEY_SCOPE_REQUIRED. Use client.shipping / client.pickups / client.scan_forms where they cover this.
-      def cancel_domestic_label = @http.delete("#{PROXY}/api/v3/Shipping/cancelUspsDomesticShipmentLabel")
+      def cancel_domestic_label(tracking_number) = cancel("/api/v3/Shipping/cancelUspsDomesticShipmentLabel", "trackingNumber", tracking_number)
       # @deprecated Legacy carrier proxy (sunset 2027-06-30). Needs a user token: API keys get 403
       #   API_KEY_SCOPE_REQUIRED. Use client.shipping / client.pickups / client.scan_forms where they cover this.
-      def cancel_international_label = @http.delete("#{PROXY}/api/v3/Shipping/cancelUspsInternationalShipmentLabel")
+      def cancel_international_label(international_tracking_number)
+        cancel("/api/v3/Shipping/cancelUspsInternationalShipmentLabel", "internationalTrackingNumber", international_tracking_number)
+      end
       def track_summary(params) = @http.get("#{PROXY}/api/v3/Tracking/getUspsTrackingSummaryInformation", query: params)
       def track_detail(params) = @http.get("#{PROXY}/api/v3/Tracking/getUspsTrackingDetailInformation", query: params)
       # @deprecated Legacy carrier proxy (sunset 2027-06-30). Needs a user token: API keys get 403
@@ -71,13 +73,22 @@ module FlexOps
       def create_pickup(body) = @http.post("#{PROXY}/api/v3/CarrierPickup/postUspsCreateCarrierPickupSchedule", body: body)
       # @deprecated Legacy carrier proxy (sunset 2027-06-30). Needs a user token: API keys get 403
       #   API_KEY_SCOPE_REQUIRED. Use client.shipping / client.pickups / client.scan_forms where they cover this.
-      def cancel_pickup = @http.delete("#{PROXY}/api/v3/CarrierPickup/cancelUspsCarrierPickupSchedule")
+      def cancel_pickup(confirmation_number) = cancel("/api/v3/CarrierPickup/cancelUspsCarrierPickupSchedule", "confirmationNumber", confirmation_number)
       # @deprecated Legacy carrier proxy (sunset 2027-06-30). Needs a user token: API keys get 403
       #   API_KEY_SCOPE_REQUIRED. Use client.shipping / client.pickups / client.scan_forms where they cover this.
       def create_scan_form(body) = @http.post("#{PROXY}/api/v3/ScanForm/postUspsCreateScanFormLabelShipment", body: body)
       def delivery_standards(params) = @http.get("#{PROXY}/api/v3/ServiceStandards/getUspsGetDeliveryStandardsEstimates", query: params)
       def find_drop_off_locations(params) = @http.get("#{PROXY}/api/v3/LocationSearch/getUspsFindValidDropOffLocations", query: params)
       def find_post_offices(params) = @http.get("#{PROXY}/api/v3/LocationSearch/getUspsFindValidPostOfficeLocations", query: params)
+
+      private
+
+      # Sends a USPS cancel with what it cancels in the query string; without it VSCS answers 400.
+      def cancel(path, param, value)
+        raise ArgumentError, "#{param} is required." if value.to_s.strip.empty?
+
+        @http.delete("#{PROXY}#{path}", query: { param => value })
+      end
     end
 
     # UPS through the legacy proxy. With an API key, track requires tracking:read.

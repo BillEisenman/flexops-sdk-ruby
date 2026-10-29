@@ -369,17 +369,32 @@ RSpec.describe "Gateway resource contracts" do
         .with(body: { accountNumber: "123" }.to_json, headers: { "Idempotency-Key" => /\A\h{8}-\h{4}-/ })
         .to_return(status: 200, body: "{}", headers: json_headers)
       cancel = stub_request(:put, "#{proxy}/api/v3/Shipping/putFedExCancelShipment").to_return(status: 200, body: "{}", headers: json_headers)
-      pickup = stub_request(:delete, "#{proxy}/api/v3/CarrierPickup/cancelUspsCarrierPickupSchedule").to_return(status: 204)
+      pickup = stub_request(:delete, "#{proxy}/api/v3/CarrierPickup/cancelUspsCarrierPickupSchedule?confirmationNumber=WTC1").to_return(status: 204)
       ups = stub_request(:post, "#{proxy}/api/v2/ShippingLabel/postUpsRateCheck").to_return(status: 200, body: "{}", headers: json_headers)
       dhl = stub_request(:post, "#{proxy}/api/v2/ShippingLabel/postDhlCreatePickup").to_return(status: 200, body: "{}", headers: json_headers)
 
       client.carriers.fedex.get_rates(accountNumber: "123")
       client.carriers.fedex.cancel_shipment(trackingNumber: "7946")
-      expect(client.carriers.usps.cancel_pickup).to be_nil
+      expect(client.carriers.usps.cancel_pickup("WTC1")).to be_nil
       client.carriers.ups.get_rates({})
       client.carriers.dhl.create_pickup({})
 
       [rates, cancel, pickup, ups, dhl].each { |stub| expect(stub).to have_been_requested.once }
+    end
+
+    it "sends what a USPS cancel cancels in the query string" do
+      stubs = [
+        stub_request(:delete, "#{proxy}/api/v3/CarrierPickup/cancelUspsCarrierPickupSchedule?confirmationNumber=WTC%20123"),
+        stub_request(:delete, "#{proxy}/api/v3/Shipping/cancelUspsDomesticShipmentLabel?trackingNumber=9400111899223456789012"),
+        stub_request(:delete, "#{proxy}/api/v3/Shipping/cancelUspsInternationalShipmentLabel?internationalTrackingNumber=LZ123456789US")
+      ].map { |stub| stub.to_return(status: 204) }
+
+      client.carriers.usps.cancel_pickup("WTC 123")
+      client.carriers.usps.cancel_domestic_label("9400111899223456789012")
+      client.carriers.usps.cancel_international_label("LZ123456789US")
+
+      stubs.each { |stub| expect(stub).to have_been_requested.once }
+      expect { client.carriers.usps.cancel_pickup(" ") }.to raise_error(ArgumentError, "confirmationNumber is required.")
     end
   end
 
