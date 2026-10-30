@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`flexops` is the **official hand-crafted Ruby SDK** for the FlexOps Platform. It targets the FlexOps **Gateway BFF**. Published to RubyGems as `flexops`; current tag `v1.0.1`.
+`flexops` is the **official hand-crafted Ruby SDK** for the FlexOps Platform. It targets the FlexOps **Gateway BFF**. Published to RubyGems as `flexops`; `lib/flexops/version.rb` holds the current version.
 
 > **Gateway-targeted, not VSCS-targeted.** All hand-crafted SDKs in this family (.NET, Node, Python, Go, PHP, Ruby) hit Gateway. The Java SDK is the lone exception — it was auto-generated against VisionSuiteCoreServices and is archived as of 2026-03-08.
 
