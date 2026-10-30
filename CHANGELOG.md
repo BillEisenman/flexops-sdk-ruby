@@ -7,11 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-30
+
 ### Added
 - `FlexOps::ScanFormState` (`CREATED`, `OUTCOME_UNKNOWN`) with `created?(form)` and `pdf_bytes(form)`, which decodes a
   form's base64 `scanFormImage` (nil for sandbox forms and unresolved operations).
 
 ### Changed
+- The Gateway previews sandbox labels too: a `test_` key now needs `maximumPostageAmount`, and the label comes from the approval.
 - Docs: `client.scan_forms` documents the form the Gateway returns in `data` (its ScanFormDto): `scanFormId`,
   `state`, `originPostalCode`, `trackingNumbers`, `createdAtUtc`, `scanFormImage`, `manifestNumber`, `manifestDate`,
   `packageCount`, `statusMessage`, `success`, `errorMessage` and `isSandbox`, and that `create` raises
